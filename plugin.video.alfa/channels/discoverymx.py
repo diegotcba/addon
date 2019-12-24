@@ -5,6 +5,7 @@ import urlparse
 
 from core import scrapertools
 from core import servertools
+from core import httptools
 from core.item import Item
 from platformcode import logger
 
@@ -30,7 +31,7 @@ def DocuSeries(item):
     itemlist = []
 
     # Descarga la página
-    data = scrapertools.cache_page(item.url)
+    data = httptools.downloadpage(item.url).data
 
     # Extrae las entradas (carpetas)
     patronvideos = '<li><b><a href="([^"]+)" target="_blank">([^<]+)</a></b></li>'
@@ -54,7 +55,7 @@ def DocuTag(item):
     itemlist = []
 
     # Descarga la página
-    data = scrapertools.cache_page(item.url)
+    data = httptools.downloadpage(item.url).data
     patronvideos = "<a dir='ltr' href='([^']+)'>([^<]+)</a>[^<]+<span class='label-count' dir='ltr'>(.+?)</span>"
     matches = re.compile(patronvideos, re.DOTALL).findall(data)
     scrapertools.printMatches(matches)
@@ -76,7 +77,7 @@ def DocuARCHIVO(item):
     itemlist = []
 
     # Descarga la página
-    data = scrapertools.cache_page(item.url)
+    data = httptools.downloadpage(item.url).data
     patronvideos = "<a class='post-count-link' href='([^']+)'>([^<]+)</a>[^<]+"
     patronvideos += "<span class='post-count' dir='ltr'>(.+?)</span>"
     matches = re.compile(patronvideos, re.DOTALL).findall(data)
@@ -102,7 +103,7 @@ def listvideos(item):
     scrapedplot = ""
 
     # Descarga la página
-    data = scrapertools.cache_page(item.url)
+    data = httptools.downloadpage(item.url).data
     patronvideos = "<h3 class='post-title entry-title'[^<]+"
     patronvideos += "<a href='([^']+)'>([^<]+)</a>.*?"
     patronvideos += "<div class='post-body entry-content'(.*?)<div class='post-footer'>"
@@ -156,8 +157,8 @@ def findvideos(item):
     itemlist = []
 
     # Descarga la página
-    data = scrapertools.cachePage(item.url)
-    data = scrapertools.get_match(data, "<div class='post-body entry-content'(.*?)<div class='post-footer'>")
+    data = httptools.downloadpage(item.url).data
+    data = scrapertools.find_single_match(data, "<div class='post-body entry-content'(.*?)<div class='post-footer'>")
 
     # Busca los enlaces a los videos
     listavideos = servertools.findvideos(data)
@@ -168,6 +169,6 @@ def findvideos(item):
         server = video[2]
         # xbmctools.addnewvideo( item.channel , "play" , category , server ,  , url , thumbnail , plot )
         itemlist.append(Item(channel=item.channel, action="play", server=server, title=videotitle, url=url,
-                             thumbnail=item.thumbnail, plot=item.plot, fulltitle=item.title, folder=False))
+                             thumbnail=item.thumbnail, plot=item.plot, contentTitle=item.title, folder=False))
 
     return itemlist

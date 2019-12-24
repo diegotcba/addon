@@ -86,7 +86,7 @@ def mas_vistas(item):
     data = re.sub(r"\n|\r|\t|\s{2}|&nbsp;|<Br>|<BR>|<br>|<br/>|<br />|-\s", "", data)
     data = re.sub(r"<!--.*?-->", "", data)
     patron = "<div class='widget HTML' id='HTML3'.+?<div class='widget-content'>(.*?)</div>"
-    data = scrapertools.get_match(data, patron)
+    data = scrapertools.find_single_match(data, patron)
     item.data = data
     item.first = 0
     return series_seccion(item)
@@ -99,7 +99,7 @@ def listado_completo(item):
     data = re.sub(r"\n|\r|\t|\s{2}|&nbsp;|<Br>|<BR>|<br>|<br/>|<br />|-\s", "", data)
     data = re.sub(r"<!--.*?-->", "", data)
     patron = '<div class="widget HTML" id="HTML10".+?<div class="widget-content">(.*?)</div>'
-    data = scrapertools.get_match(data, patron)
+    data = scrapertools.find_single_match(data, patron)
     item.first = 0
     item.data = data
     return series_seccion(item)
@@ -292,7 +292,7 @@ def parse_videos(item, tipo, data):
 
         itemlist.append(Item(channel=item.channel, title=title, url=urlparse.urljoin(HOST, link), action="play",
                              show=item.show, language=IDIOMAS.get(language, "OVOS"), quality=quality,
-                             fulltitle=item.title, server=server))
+                             contentTitle=item.title, server=server))
 
     return itemlist
 
@@ -307,7 +307,7 @@ def play(item):
     url = scrapertools.find_single_match(data, patron)
 
     itemlist = servertools.find_video_items(data=url)
-    titulo = scrapertools.find_single_match(item.fulltitle, "^(.*?)\s\[.+?$")
+    titulo = scrapertools.find_single_match(item.contentTitle, "^(.*?)\s\[.+?$")
     if titulo:
         titulo += " [%s]" % item.language
 

@@ -199,7 +199,7 @@ def peliculas(item):
             year = int(year)
         else:
             year = 0
-        fulltitle = scrapertools.find_single_match(scrapedtitle, "(.*?) \(")
+        contentTitle = scrapertools.find_single_match(scrapedtitle, "(.*?) \(")
         if "serie" in scrapedurl:
             action = "capitulos"
             infoLabels ['tvshowtitle'] = scrapedtitle
@@ -209,7 +209,7 @@ def peliculas(item):
         infoLabels ['year'] = year
         itemlist.append(Item(action = action,
                              channel = item.channel,
-                             fulltitle = fulltitle,
+                             contentTitle = contentTitle,
                              thumbnail = scrapedthumbnail,
                              infoLabels = infoLabels,
                              title = scrapedtitle,
@@ -248,12 +248,12 @@ def findvideos(item):
         itemlist.append(Item(channel = item.channel))
         itemlist.append(item.clone(channel="trailertools", title="Buscar Tráiler", action="buscartrailer", context="",
                                    text_color="magenta"))
-        # Opción "Añadir esta película a la biblioteca de KODI"
-        if item.extra != "library":
+        # Opción "Añadir esta película a la videoteca de KODI"
+        if item.contentChannel != "videolibrary":
             if config.get_videolibrary_support():
                 itemlist.append(Item(channel=item.channel, title="Añadir a la videoteca", text_color="green",
                                      action="add_pelicula_to_library", url=item.url, thumbnail = item.thumbnail,
-                                     fulltitle = item.fulltitle
+                                     contentTitle = item.contentTitle
                                      ))
     return itemlist
 

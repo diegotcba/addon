@@ -3,18 +3,18 @@
 import time
 import urllib
 
-from core import jsontools
+from core import httptools
 from core import scrapertools
 from platformcode import config, logger
 from platformcode import platformtools
 
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:47.0) Gecko/20100101 Firefox/47.0'}
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:65.0) Gecko/20100101 Firefox/65.0'}
 
 
 # Returns an array of possible video url's from the page_url
 def get_video_url(page_url, premium=False, user="", password="", video_password=""):
     logger.info("(page_url='%s' , video_password=%s)" % (page_url, video_password))
-
+    page_url = page_url.replace(".nz/embed", ".nz/")
     # Se comprueba si existe un token guardado y sino se ejecuta el proceso de autentificación
     token_auth = config.get_setting("token", server="realdebrid")
     if token_auth is None or token_auth == "":
@@ -28,27 +28,36 @@ def get_video_url(page_url, premium=False, user="", password="", video_password=
     post_link = urllib.urlencode([("link", page_url), ("password", video_password)])
     headers["Authorization"] = "Bearer %s" % token_auth
     url = "https://api.real-debrid.com/rest/1.0/unrestrict/link"
-    data = scrapertools.downloadpage(url, post=post_link, headers=headers.items())
-    data = jsontools.load(data)
+    data = httptools.downloadpage(url, post=post_link, headers=headers.items()).json
+    logger.error(data)
+
+    check = config.get_setting("secret", server="realdebrid")
+    #Se ha usado la autentificación por urlresolver (Bad Idea)
+    if "error" in data and data["error"] == "bad_token" and not check:
+        token_auth = authentication()
+        headers["Authorization"] = "Bearer %s" % token_auth
+        data = httptools.downloadpage(url, post=post_link, headers=headers.items()).json
 
     # Si el token es erróneo o ha caducado, se solicita uno nuevo
-    if "error" in data and data["error"] == "bad_token":
+    elif "error" in data and data["error"] == "bad_token":
+        
         debrid_id = config.get_setting("id", server="realdebrid")
         secret = config.get_setting("secret", server="realdebrid")
         refresh = config.get_setting("refresh", server="realdebrid")
 
         post_token = urllib.urlencode({"client_id": debrid_id, "client_secret": secret, "code": refresh,
                                        "grant_type": "http://oauth.net/grant_type/device/1.0"})
-        renew_token = scrapertools.downloadpage("https://api.real-debrid.com/oauth/v2/token", post=post_token,
-                                                headers=headers.items())
-        renew_token = jsontools.load(renew_token)
+        renew_token = httptools.downloadpage("https://api.real-debrid.com/oauth/v2/token", post=post_token,
+                                                headers=headers.items()).json
         if not "error" in renew_token:
             token_auth = renew_token["access_token"]
             config.set_setting("token", token_auth, server="realdebrid")
             headers["Authorization"] = "Bearer %s" % token_auth
-            data = scrapertools.downloadpage(url, post=post_link, headers=headers.items())
-            data = jsontools.load(data)
-
+            data = httptools.downloadpage(url, post=post_link, headers=headers.items()).json
+        else:
+            token_auth = authentication()
+            headers["Authorization"] = "Bearer %s" % token_auth
+            data = httptools.downloadpage(url, post=post_link, headers=headers.items()).json
     if "download" in data:
         return get_enlaces(data)
     else:
@@ -87,8 +96,7 @@ def authentication():
 
         # Se solicita url y código de verificación para conceder permiso a la app
         url = "http://api.real-debrid.com/oauth/v2/device/code?client_id=%s&new_credentials=yes" % (client_id)
-        data = scrapertools.downloadpage(url, headers=headers.items())
-        data = jsontools.load(data)
+        data = httptools.downloadpage(url, headers=headers.items()).json
         verify_url = data["verification_url"]
         user_code = data["user_code"]
         device_code = data["device_code"]
@@ -108,8 +116,7 @@ def authentication():
 
                 url = "https://api.real-debrid.com/oauth/v2/device/credentials?client_id=%s&code=%s" \
                       % (client_id, device_code)
-                data = scrapertools.downloadpage(url, headers=headers.items())
-                data = jsontools.load(data)
+                data = httptools.downloadpage(url, headers=headers.items()).json
                 if "client_secret" in data:
                     # Código introducido, salimos del bucle
                     break
@@ -127,9 +134,8 @@ def authentication():
         # Se solicita el token de acceso y el de actualización para cuando el primero caduque
         post = urllib.urlencode({"client_id": debrid_id, "client_secret": secret, "code": device_code,
                                  "grant_type": "http://oauth.net/grant_type/device/1.0"})
-        data = scrapertools.downloadpage("https://api.real-debrid.com/oauth/v2/token", post=post,
-                                         headers=headers.items())
-        data = jsontools.load(data)
+        data = httptools.downloadpage("https://api.real-debrid.com/oauth/v2/token", post=post,
+                                         headers=headers.items()).json
 
         token = data["access_token"]
         refresh = data["refresh_token"]

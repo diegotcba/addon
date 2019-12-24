@@ -33,7 +33,7 @@ list_servers = [
 __comprueba_enlaces__ = config.get_setting('comprueba_enlaces', 'dospelis')
 __comprueba_enlaces_num__ = config.get_setting('comprueba_enlaces_num', 'dospelis')
 
-host = 'https://dospelis.com/'
+host = 'https://www.dospelis.online/'
 
 def mainlist(item):
     logger.info()
@@ -90,9 +90,9 @@ def section(item):
     logger.info()
     itemlist=[]
     duplicados=[]
-    data = get_source(host+'/'+item.type)
+    data = get_source(host+item.type)
     if 'Genero' in item.title:
-        patron = '<li class="cat-item cat-item-\d+"><a href="([^"]+)" >(.*?)/i>'
+        patron = '<li class="cat-item cat-item-\d+"><a href="([^"]+)".*?>(.*?)/i>'
     elif 'Año' in item.title:
         patron = '<li><a href="(.*?release.*?)">([^<]+)</a>'
 
@@ -102,7 +102,7 @@ def section(item):
         title = scrapedtitle
         plot=''
         if 'Genero' in item.title:
-            quantity =  scrapertools.find_single_match(scrapedtitle,'</a> <i>(.*?)<')
+            quantity =  scrapertools.find_single_match(scrapedtitle,'<i>(.*?)<')
             title = scrapertools.find_single_match(scrapedtitle,'(.*?)</')
             title = title
             plot = '%s elementos' % quantity.replace('.','')
@@ -124,32 +124,30 @@ def list_all(item):
     if item.type ==  'movies':
 
         patron = '<article id="post-\d+" class="item movies"><div class="poster">.?<img src="([^"]+)" alt="([^"]+)">.*?'
-        patron +='"quality">([^<]+)</span><\/div>.?<a href="([^"]+)">.*?'
-        patron +='<\/h3>.?<span>([^"]+)<\/span><\/div>.*?"flags"(.*?)metadata'
+        patron += 'quality">([^<]+)<.*?<a href="([^"]+)">.*?imdb.*?<span>([^<]+)<'
 
         matches = re.compile(patron, re.DOTALL).findall(data)
 
-        for scrapedthumbnail, scrapedtitle, quality, scrapedurl, year, lang_data in matches:
+        for scrapedthumbnail, scrapedtitle, quality, scrapedurl, year in matches:
 
 
             title = '%s [%s] [%s]' % (scrapedtitle, year, quality)
             contentTitle = scrapedtitle
             thumbnail = scrapedthumbnail
             url = scrapedurl
-            language = get_language(lang_data)
+            #language = get_language(lang_data)
 
             itemlist.append(item.clone(action='findvideos',
                             title=title,
                             url=url,
                             thumbnail=thumbnail,
                             contentTitle=contentTitle,
-                            language=language,
                             quality=quality,
                             infoLabels={'year':year}))
 
     elif item.type ==  'tvshows':
         patron = '<article id="post-\d+" class="item tvshows">.?<div class="poster">.?<img src="([^"]+)"'
-        patron += ' alt="([^"]+)">.*?<a href="([^"]+)">.*?<\/h3>.?<span>(.*?)<\/span><\/div>'
+        patron += ' alt="([^"]+)">.*?<a href="([^"]+)".*?<\/h3>.?<span>(.*?)<\/span><\/div>'
         matches = re.compile(patron, re.DOTALL).findall(data)
 
         for scrapedthumbnail, scrapedtitle, scrapedurl, year in matches:
@@ -168,7 +166,7 @@ def list_all(item):
     tmdb.set_infoLabels(itemlist, seekTmdb=True)
     #  Paginación
 
-    url_next_page = scrapertools.find_single_match(data,'<link rel="next" href="([^"]+)" />')
+    url_next_page = scrapertools.find_single_match(data,'<link rel="next" href="([^"]+)"')
     if url_next_page:
         itemlist.append(item.clone(title="Siguiente >>", url=url_next_page, action='list_all'))
 
@@ -180,7 +178,7 @@ def seasons(item):
     itemlist=[]
 
     data=get_source(item.url)
-    patron='Temporada.?\d+'
+    patron="'title'>Temporada (\d+)"
     matches = re.compile(patron, re.DOTALL).findall(data)
 
     infoLabels = item.infoLabels
@@ -214,7 +212,7 @@ def episodesxseasons(item):
     itemlist = []
 
     data=get_source(item.url)
-    patron='class="numerando">%s - (\d+)</div>.?<div class="episodiotitle">.?<a href="([^"]+)">([^<]+)<' % item.infoLabels['season']
+    patron = "class='numerando'>%s - (\d+)</div>.?<div class='episodiotitle'>.?<a href='([^']+)'([^<]+)<" % item.infoLabels['season']
     matches = re.compile(patron, re.DOTALL).findall(data)
 
     infoLabels = item.infoLabels
@@ -232,25 +230,87 @@ def episodesxseasons(item):
     return itemlist
 
 
+# def findvideos(item):
+#     logger.info()
+#     itemlist = []
+#     data = get_source(item.url)
+#     patron = 'id=option-(\d+).*?src=([^ ]+) frameborder'
+#     matches = re.compile(patron, re.DOTALL).findall(data)
+#     lang=''
+#     for option, scrapedurl in matches:
+#         lang = scrapertools.find_single_match(data, 'href=#option-%s>.*?/flags/(.*?).png' % option)
+#         quality = ''
+#         if 'goo.gl' in scrapedurl:
+#             new_data = httptools.downloadpage(scrapedurl, follow_redirects=False).headers
+#             scrapedurl = new_data['location']
+#         if lang not in IDIOMAS:
+#             lang = 'en'
+#         title = '%s %s'
+#
+#         itemlist.append(
+#             Item(channel=item.channel, url=scrapedurl, title=title, action='play', quality=quality, language=IDIOMAS[lang],
+#                  infoLabels=item.infoLabels))
+#
+#     itemlist = servertools.get_servers_itemlist(itemlist, lambda x: x.title % (x.server.capitalize(), x.language))
+#
+#     # Requerido para Filtrar enlaces
+#
+#     if __comprueba_enlaces__:
+#         itemlist = servertools.check_list_links(itemlist, __comprueba_enlaces_num__)
+#
+#     # Requerido para FilterTools
+#
+#     itemlist = filtertools.get_links(itemlist, item, list_language)
+#
+#     # Requerido para AutoPlay
+#
+#     autoplay.start(itemlist, item)
+#
+#     itemlist = sorted(itemlist, key=lambda it: it.language)
+#
+#     if item.contentType != 'episode':
+#         if config.get_videolibrary_support() and len(itemlist) > 0 and item.extra != 'findvideos':
+#             itemlist.append(
+#                 Item(channel=item.channel, title='[COLOR yellow]Añadir esta pelicula a la videoteca[/COLOR]', url=item.url,
+#                      action="add_pelicula_to_library", extra="findvideos", contentTitle=item.contentTitle))
+#
+#     return itemlist
+
+
 def findvideos(item):
     logger.info()
+    from lib import generictools
+    import urllib
     itemlist = []
     data = get_source(item.url)
-    patron = 'id="option-(\d+)".*?rptss" src="([^"]+)" frameborder'
+
+    patron = "data-type='([^']+)' data-post='(\d+)' data-nume='(\d+).*?img src='([^']+)"
     matches = re.compile(patron, re.DOTALL).findall(data)
-    lang=''
-    for option, scrapedurl in matches:
-        lang = scrapertools.find_single_match(data, 'href=#option-%s>.*?/flags/(.*?).png' % option)
+    for type, id, option, lang in matches:
+        lang = scrapertools.find_single_match(lang, '.*?/flags/(.*?).png')
         quality = ''
         if lang not in IDIOMAS:
             lang = 'en'
-        title = '%s %s'
+        if not config.get_setting('unify'):
+            title = ' [%s]' % IDIOMAS[lang]
+        else:
+            title = ''
 
-        itemlist.append(
-            Item(channel=item.channel, url=scrapedurl, title=title, action='play', quality=quality, language=IDIOMAS[lang],
-                 infoLabels=item.infoLabels))
+        post = {'action': 'doo_player_ajax', 'post': id, 'nume': option, 'type':type}
+        post = urllib.urlencode(post)
 
-    itemlist = servertools.get_servers_itemlist(itemlist, lambda x: x.title % (x.server.capitalize(), x.language))
+        test_url = '%swp-admin/admin-ajax.php' % host
+        new_data = httptools.downloadpage(test_url, post=post, headers={'Referer':item.url}).data
+        url = scrapertools.find_single_match(new_data, "src='([^']+)'").replace('oladblock.me', 'openload.co')
+        if 'goo.gl' in url:
+            url = httptools.downloadpage(url, only_headers=True).url
+
+        if url != '':
+            itemlist.append(Item(channel=item.channel, url=url, title='%s'+title, action='play', quality=quality,
+                                 language=IDIOMAS[lang], infoLabels=item.infoLabels))
+
+
+    itemlist = servertools.get_servers_itemlist(itemlist, lambda x: x.title % x.server.capitalize())
 
     # Requerido para Filtrar enlaces
 
@@ -275,6 +335,8 @@ def findvideos(item):
 
     return itemlist
 
+
+
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
@@ -291,8 +353,7 @@ def search_results(item):
     itemlist=[]
 
     data=get_source(item.url)
-    patron = '<article>.*?<a href="([^"]+)"><img src="([^"]+)" alt="([^"]+)" \/>.*?meta.*?'
-    patron += '"year">([^<]+)<(.*?)<p>([^<]+)<\/p>'
+    patron = '<article>.*?<a href="([^"]+)"><img src="([^"]+)" alt="([^"]+)".*?year">([^<]+)<(.*?)<p>([^<]+)<\/p>'
     matches = re.compile(patron, re.DOTALL).findall(data)
 
     for scrapedurl, scrapedthumb, scrapedtitle, year, lang_data, scrapedplot in matches:

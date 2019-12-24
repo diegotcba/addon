@@ -13,6 +13,7 @@ from core import filetools
 from core import jsontools
 from platformcode import config, logger
 from platformcode import platformtools
+from core import scrapertools
 
 
 def mark_auto_as_watched(item):
@@ -328,8 +329,6 @@ def mark_season_as_watched_on_kodi(item, value=1):
 def mark_content_as_watched_on_alfa(path):
     from channels import videolibrary
     from core import videolibrarytools
-    from core import scrapertools
-    from core import filetools
     import re
     """
         marca toda la serie o película como vista o no vista en la Videoteca de Alfa basado en su estado en la Videoteca de Kodi
@@ -342,6 +341,8 @@ def mark_content_as_watched_on_alfa(path):
     FOLDER_MOVIES = config.get_setting("folder_movies")
     FOLDER_TVSHOWS = config.get_setting("folder_tvshows")
     VIDEOLIBRARY_PATH = config.get_videolibrary_config_path()
+    if not VIDEOLIBRARY_PATH:
+        return
 
     # Solo podemos marcar el contenido como vista en la BBDD de Kodi si la BBDD es local,
     # en caso de compartir BBDD esta funcionalidad no funcionara
@@ -358,6 +359,9 @@ def mark_content_as_watched_on_alfa(path):
     if "\\" in path:
         path = path.replace("/", "\\")
     head_nfo, item = videolibrarytools.read_nfo(path)                   #Leo el .nfo del contenido
+    if not item:
+        logger.error('.NFO no encontrado: ' + path)
+        return
 
     if FOLDER_TVSHOWS in path:                                          #Compruebo si es CINE o SERIE
         contentType = "episode_view"                                    #Marco la tabla de BBDD de Kodi Video
@@ -376,7 +380,7 @@ def mark_content_as_watched_on_alfa(path):
         nfo_name = scrapertools.find_single_match(path2, '\]\/(.*?)$')  #Construyo el nombre del .nfo
         path1 = path1.replace(nfo_name, '')                             #para la SQL solo necesito la carpeta
         path2 = path2.replace(nfo_name, '')                             #para la SQL solo necesito la carpeta
-    path2 = filetools.remove_smb_credential(path2)                      #Si el archivo está en un servidor SMB, quiamos las credenciales
+    path2 = filetools.remove_smb_credential(path2)                      #Si el archivo está en un servidor SMB, quitamos las credenciales
     
     #Ejecutmos la sentencia SQL
     sql = 'select strFileName, playCount from %s where (strPath like "%s" or strPath like "%s")' % (contentType, path1, path2)
@@ -474,6 +478,7 @@ def update(folder_content=config.get_setting("folder_tvshows"), folder=""):
     }
 
     if folder:
+        folder = str(folder)
         videolibrarypath = config.get_videolibrary_config_path()
 
         if folder.endswith('/') or folder.endswith('\\'):
@@ -486,9 +491,10 @@ def update(folder_content=config.get_setting("folder_tvshows"), folder=""):
                 videolibrarypath = videolibrarypath[:-1]
             update_path = videolibrarypath + "/" + folder_content + "/" + folder + "/"
         else:
-            update_path = filetools.join(videolibrarypath, folder_content, folder) + "/"
+            #update_path = filetools.join(videolibrarypath, folder_content, folder) + "/"   # Problemas de encode en "folder"
+            update_path = filetools.join(videolibrarypath, folder_content, ' ').rstrip()
 
-        if not update_path.startswith("smb://"):
+        if not scrapertools.find_single_match(update_path, '(^\w+:\/\/)'):
             payload["params"] = {"directory": update_path}
 
     while xbmc.getCondVisibility('Library.IsScanningVideo()'):
@@ -651,7 +657,7 @@ def set_content(content_type, silent=False):
         if sql_videolibrarypath.startswith("special://"):
             sql_videolibrarypath = sql_videolibrarypath.replace('/profile/', '/%/').replace('/home/userdata/', '/%/')
             sep = '/'
-        elif sql_videolibrarypath.startswith("smb://"):
+        elif scrapertools.find_single_match(sql_videolibrarypath, '(^\w+:\/\/)'):
             sep = '/'
         else:
             sep = os.sep
@@ -869,7 +875,7 @@ def add_sources(path):
     # Nodo <name>
     nodo_name = xmldoc.createElement("name")
     sep = os.sep
-    if path.startswith("special://") or path.startswith("smb://"):
+    if path.startswith("special://") or scrapertools.find_single_match(path, '(^\w+:\/\/)'):
         sep = "/"
     name = path
     if path.endswith(sep):

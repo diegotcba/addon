@@ -28,8 +28,7 @@ def start():
     #config.set_setting('show_once', True)
     # Test if all the required directories are created
     config.verify_directories_created()
-
-
+    
 def run(item=None):
     logger.info()
 
@@ -60,6 +59,9 @@ def run(item=None):
     logger.info(item.tostring())
 
     try:
+        if not config.get_setting('tmdb_active'):
+            config.set_setting('tmdb_active', True)
+
         # If item has no action, stops here
         if item.action == "":
             logger.info("Item sin accion")
@@ -217,21 +219,21 @@ def run(item=None):
             elif item.action == "search":
                 logger.info("item.action=%s" % item.action.upper())
 
-                last_search = ""
-                last_search_active = config.get_setting("last_search", "search")
-                if last_search_active:
-                    try:
-                        current_saved_searches_list = list(config.get_setting("saved_searches_list", "search"))
-                        last_search = current_saved_searches_list[0]
-                    except:
-                        pass
+                # last_search = ""
+                # last_search_active = config.get_setting("last_search", "search")
+                # if last_search_active:
+                #     try:
+                #         current_saved_searches_list = list(config.get_setting("saved_searches_list", "search"))
+                #         last_search = current_saved_searches_list[0]
+                #     except:
+                #         pass
+
+                last_search = channeltools.get_channel_setting('Last_searched', 'search', '')
 
                 tecleado = platformtools.dialog_input(last_search)
-                if tecleado is not None:
-                    if last_search_active and not tecleado.startswith("http"):
-                        from channels import search
-                        search.save_search(tecleado)
 
+                if tecleado is not None:
+                    channeltools.set_channel_setting('Last_searched', tecleado, 'search')
                     itemlist = channel.search(item, tecleado)
                 else:
                     return
@@ -392,12 +394,15 @@ def play_from_library(item):
     import xbmcgui
     import xbmcplugin
     import xbmc
+    from time import sleep
+    
     # Intentamos reproducir una imagen (esto no hace nada y ademas no da error)
     xbmcplugin.setResolvedUrl(int(sys.argv[1]), True,
                               xbmcgui.ListItem(
                                   path=os.path.join(config.get_runtime_path(), "resources", "subtitle.mp4")))
 
     # Por si acaso la imagen hiciera (en futuras versiones) le damos a stop para detener la reproduccion
+    sleep(0.5)              ### Si no se pone esto se bloquea Kodi
     xbmc.Player().stop()
 
     # modificamos el action (actualmente la videoteca necesita "findvideos" ya que es donde se buscan las fuentes
@@ -421,7 +426,6 @@ def play_from_library(item):
 
         while platformtools.is_playing():
                 # Ventana convencional
-                from time import sleep
                 sleep(5)
         p_dialog.update(50, '')
 

@@ -2,6 +2,7 @@
 
 import re
 import urlparse
+import base64
 
 from core import channeltools
 from core import httptools
@@ -12,7 +13,10 @@ from platformcode import config, logger
 
 __channel__ = "xms"
 
-host = 'https://xxxmoviestream.com/'
+# Xtheatre links netu, vidlox y nuevo serve https://watchanimestream.net/v/kep0pc3jzlwq0n6
+
+
+host = 'https://xtheatre.org/'
 host1 = 'https://www.cam4.com/'
 try:
     __modo_grafico__ = config.get_setting('modo_grafico', __channel__)
@@ -90,9 +94,10 @@ def peliculas(item):
 
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|#038;", "", data)
-    patron_todos = '<div id="content">(.*?)<div id="footer"'
-    data = scrapertools.find_single_match(data, patron_todos)
-    patron = 'src="([^"]+)" class="attachment-thumb_site.*?'  # img
+    if "category" in item.url:
+            patron = 'title="[^"]+" data-lazy-src="([^"]+)".*?'  # img
+    else:
+        patron = '<img width="\d+" height="\d+" src="([^"]+)".*?'
     patron += '<a href="([^"]+)" title="([^"]+)".*?'          # url, title
     patron += '<div class="right"><p>([^<]+)</p>'             # plot
     matches = re.compile(patron, re.DOTALL).findall(data)
@@ -119,22 +124,21 @@ def peliculas(item):
 def webcam(item):
     logger.info()
     itemlist = []
-
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|#038;", "", data)
     patron = '<div class="profileBox">.*?<a href="/([^"]+)".*?'  # url
     patron += 'data-hls-preview-url="([^"]+)">.*?'               # video_url
     patron += 'data-username="([^"]+)".*?'                       # username
     patron += 'title="([^"]+)".*?'                               # title
-    patron += 'data-profile="([^"]+)" />'                        # img
+    patron += 'data-profile="([^"]+)"'                        # img
     matches = re.compile(patron, re.DOTALL).findall(data)
 
     for scrapedurl, video_url, username, scrapedtitle, scrapedthumbnail in matches:
         scrapedtitle = scrapedtitle.replace(' Chat gratis con webcam.', '')
 
-        itemlist.append(item.clone(channel=__channel__, action="play", title=scrapedtitle,
+        itemlist.append(item.clone(channel=__channel__, action="findvideos", title=username,
                                    url=video_url, thumbnail=scrapedthumbnail, fanart=scrapedthumbnail,
-                                   viewmode="movie_with_plot", folder=True, contentTitle=scrapedtitle))
+                                   viewmode="movie_with_plot", folder=True, contentTitle=username))
     # Extrae el paginador
     paginacion = scrapertools.find_single_match(data, '<span id="pagerSpan">\d+</span> <a href="([^"]+)"')
     paginacion = urlparse.urljoin(item.url, paginacion)
@@ -152,10 +156,10 @@ def categorias(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
-    patron = 'data-lazy-src="([^"]+)".*?'                            # img
-    patron += '</noscript><a href="([^"]+)".*?'                      # url
-    patron += '<span>([^<]+)</span></a>.*?'                          # title
-    patron += '<span class="nb_cat border-radius-5">([^<]+)</span>'  # num_vids
+    patron = 'data-lazy-src="([^"]+)".*?'
+    patron += '<a href="([^"]+)".*?'
+    patron += '<span>([^<]+)</span></a>.*?'
+    patron += '<span class="nb_cat border-radius-5">([^<]+)</span>'
     matches = re.compile(patron, re.DOTALL).findall(data)
 
     for scrapedthumbnail, scrapedurl, scrapedtitle, vids in matches:
@@ -198,7 +202,7 @@ def sub_search(item):
 
     for scrapedthumbnail, scrapedtitle, scrapedurl, plot in matches:
         itemlist.append(item.clone(title=scrapedtitle, url=scrapedurl, plot=plot, fanart=scrapedthumbnail,
-                                   action="findvideos", thumbnail=scrapedthumbnail))
+                                   action="play", thumbnail=scrapedthumbnail))
 
     paginacion = scrapertools.find_single_match(
         data, "<a href='([^']+)' class=\"inactive\">\d+</a>")
@@ -212,15 +216,40 @@ def sub_search(item):
 
 def findvideos(item):
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = re.sub(r"\n|\r|\t|amp;|\s{2}|&nbsp;", "", data)
-    patron = '<iframe src="[^"]+".*?<iframe src="([^"]+)" scrolling="no" frameborder="0"'
-    matches = scrapertools.find_multiple_matches(data, patron)
-
-    for url in matches:
-        server = servertools.get_server_from_url(url)
-        title = "Ver en: [COLOR yellow](%s)[/COLOR]" % server.title()
-
-        itemlist.append(item.clone(action='play', title=title, server=server, url=url))
-
+    if "playlist.m3u8" in item.url:
+        url = item.url
+        itemlist.append(item.clone(action="play", title= "%s", url=url))
+    else:
+        data = httptools.downloadpage(item.url).data
+        data = re.sub(r"\n|\r|\t|amp;|\s{2}|&nbsp;", "", data)
+        data = scrapertools.find_single_match(data, '<div class="video-embed">(.*?)<div id="video-rate">')
+        patron = 'src="([^"]+)"'
+        matches = scrapertools.find_multiple_matches(data, patron)
+        for url in matches:
+            if "strdef" in url: 
+                url = decode_url(url)
+                if "strdef" in url:
+                    url = httptools.downloadpage(url).url
+            if not "hotvideoz" in url: #netu
+                itemlist.append(item.clone(action="play", title= "%s", url=url))
+    itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist
+
+
+def decode_url(txt):
+    logger.info()
+    itemlist = []
+    data = httptools.downloadpage(txt).data
+    data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
+    rep = True
+    while rep == True:
+        b64_data = scrapertools.find_single_match(data, '\(dhYas638H\("([^"]+)"\)')
+        if b64_data:
+            b64_url = base64.b64decode(b64_data + "=")
+            b64_url = base64.b64decode(b64_url + "==")
+            data = b64_url
+        else:
+            rep = False
+    url = scrapertools.find_single_match(b64_url, '<iframe src="([^"]+)"')
+    logger.debug (url)
+    return url

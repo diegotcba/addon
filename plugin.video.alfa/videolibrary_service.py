@@ -3,17 +3,46 @@
 # Service for updating new episodes on library series
 # ------------------------------------------------------------
 
-import datetime, imp, math, threading, traceback
+import datetime, math, threading, traceback
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str
+if PY3:
+    import importlib as imp
+else:
+    import imp
 
-from core import channeltools, filetools, videolibrarytools
-from platformcode import config, logger
-from platformcode import platformtools
-from channels import videolibrary
-from lib import generictools
+
+try:
+    from platformcode import config
+    import xbmc, os
+    librerias = xbmc.translatePath(os.path.join(config.get_runtime_path(), 'lib'))
+    sys.path.append(librerias)
+except:
+    import os
+    try:
+        librerias = os.path.join(config.get_runtime_path(), 'lib')
+        sys.path.append(librerias)
+    except:
+        pass
+
+
+try:
+    from platformcode import logger
+except:
+    pass
+
 
 
 def update(path, p_dialog, i, t, serie, overwrite):
     logger.info("Actualizando " + path)
+    
+    from core import filetools
+    from core import channeltools, videolibrarytools
+    from platformcode import platformtools
+    from channels import videolibrary
+    from lib import generictools
+
     insertados_total = 0
       
     head_nfo, it = videolibrarytools.read_nfo(path + '/tvshow.nfo')
@@ -27,6 +56,9 @@ def update(path, p_dialog, i, t, serie, overwrite):
         ###### Redirección al canal NewPct1.py si es un clone, o a otro canal y url si ha intervención judicial
         try:
             head_nfo, it = videolibrarytools.read_nfo(path + '/tvshow.nfo')         #Refresca el .nfo para recoger actualizaciones
+            if not it:
+                logger.error('.nfo erroneo en ' + str(path))
+                continue
             if it.emergency_urls:
                 serie.emergency_urls = it.emergency_urls
             serie.category = category
@@ -68,17 +100,19 @@ def update(path, p_dialog, i, t, serie, overwrite):
                         #    serie.infoLabels['playcount'] = serie.playcount
                     insertados_total += insertados
 
-                except Exception, ex:
+                except Exception as ex:
                     logger.error("Error al guardar los capitulos de la serie")
                     template = "An exception of type %s occured. Arguments:\n%r"
                     message = template % (type(ex).__name__, ex.args)
                     logger.error(message)
+                    logger.error(traceback.format_exc())
 
-            except Exception, ex:
+            except Exception as ex:
                 logger.error("Error al obtener los episodios de: %s" % serie.show)
                 template = "An exception of type %s occured. Arguments:\n%r"
                 message = template % (type(ex).__name__, ex.args)
                 logger.error(message)
+                logger.error(traceback.format_exc())
 
         else:
             logger.debug("Canal %s no activo no se actualiza" % serie.channel)
@@ -96,7 +130,13 @@ def update(path, p_dialog, i, t, serie, overwrite):
 
 def check_for_update(overwrite=True):
     logger.info("Actualizando series...")
-
+    
+    from core import filetools
+    from core import channeltools, videolibrarytools
+    from platformcode import platformtools
+    from channels import videolibrary
+    from lib import generictools
+    
     p_dialog = None
     serie_actualizada = False
     update_when_finished = False
@@ -119,121 +159,132 @@ def check_for_update(overwrite=True):
                 t = float(100) / len(show_list)
 
             for i, tvshow_file in enumerate(show_list):
-                head_nfo, serie = videolibrarytools.read_nfo(tvshow_file)
-                path = filetools.dirname(tvshow_file)
-                
-                ###### Redirección al canal NewPct1.py si es un clone, o a otro canal y url si ha intervención judicial
-                overwrite_forced = False
                 try:
-                    serie, serie, overwrite_forced = generictools.redirect_clone_newpct1(serie, head_nfo, serie, path, overwrite, lookup=True)
-                except:
-                    logger.error(traceback.format_exc())
-                if overwrite_forced == True:
-                    overwrite = True
-                    serie.update_next = ''
-                    
-                logger.info("serie=" + serie.contentSerieName)
-                p_dialog.update(int(math.ceil((i + 1) * t)), heading, serie.contentSerieName)
-                
-                #Verificamos el estado del serie.library_playcounts de la Serie por si está incompleto
-                try:
-                    estado = False
-                    #Si no hemos hecho la verificación o no tiene playcount, entramos
-                    estado = config.get_setting("verify_playcount", "videolibrary")
-                    if not estado or estado == False or not serie.library_playcounts:               #Si no se ha pasado antes, lo hacemos ahora
-                        serie, estado = videolibrary.verify_playcount_series(serie, path)           #También se pasa si falta un PlayCount por completo
-                except:
-                    logger.error(traceback.format_exc())
-                else:
-                    if estado:                                                                      #Si ha tenido éxito la actualización...
-                        estado_verify_playcount_series = True                                       #... se marca para cambiar la opción de la Videoteca
-
-                interval = int(serie.active)  # Podria ser del tipo bool
-
-                if not serie.active:
-                    # si la serie no esta activa descartar
-                    if overwrite_forced == False:
-                        #Sincronizamos los episodios vistos desde la videoteca de Kodi con la de Alfa, aunque la serie esté desactivada
-                        try:
-                            if config.is_xbmc():                #Si es Kodi, lo hacemos
-                                from platformcode import xbmc_videolibrary
-                                xbmc_videolibrary.mark_content_as_watched_on_alfa(path + '/tvshow.nfo')
-                        except:
-                            logger.error(traceback.format_exc())
-                    
+                    head_nfo, serie = videolibrarytools.read_nfo(tvshow_file)
+                    if not serie:
+                        logger.error('.nfo erroneo en ' + str(tvshow_file))
                         continue
-
-                # obtenemos las fecha de actualizacion y de la proxima programada para esta serie
-                update_next = serie.update_next
-                if update_next:
-                    y, m, d = update_next.split('-')
-                    update_next = datetime.date(int(y), int(m), int(d))
-                else:
-                    update_next = hoy
-
-                update_last = serie.update_last
-                if update_last:
-                    y, m, d = update_last.split('-')
-                    update_last = datetime.date(int(y), int(m), int(d))
-                else:
-                    update_last = hoy
-
-                # si la serie esta activa ...
-                if overwrite or config.get_setting("updatetvshows_interval", "videolibrary") == 0:
-                    # ... forzar actualizacion independientemente del intervalo
-                    serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
-                    if not serie_actualizada:
-                        update_next = hoy + datetime.timedelta(days=interval)
-
-                elif interval == 1 and update_next <= hoy:
-                    # ...actualizacion diaria
-                    serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
-                    if not serie_actualizada and update_last <= hoy - datetime.timedelta(days=7):
-                        # si hace una semana q no se actualiza, pasar el intervalo a semanal
-                        interval = 7
-                        update_next = hoy + datetime.timedelta(days=interval)
-
-                elif interval == 7 and update_next <= hoy:
-                    # ...actualizacion semanal
-                    serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
-                    if not serie_actualizada:
-                        if update_last <= hoy - datetime.timedelta(days=14):
-                            # si hace 2 semanas q no se actualiza, pasar el intervalo a mensual
-                            interval = 30
-
-                        update_next += datetime.timedelta(days=interval)
-
-                elif interval == 30 and update_next <= hoy:
-                    # ...actualizacion mensual
-                    serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
-                    if not serie_actualizada:
-                        update_next += datetime.timedelta(days=interval)
+                    path = filetools.dirname(tvshow_file)
+                    
+                    ###### Redirección al canal NewPct1.py si es un clone, o a otro canal y url si ha intervención judicial
+                    overwrite_forced = False
+                    try:
+                        serie, serie, overwrite_forced = generictools.redirect_clone_newpct1(serie, head_nfo, serie, path, overwrite, lookup=True)
+                    except:
+                        logger.error(traceback.format_exc())
+                    if overwrite_forced == True:
+                        overwrite = True
+                        serie.update_next = ''
                         
-                if serie_actualizada:
-                    update_last = hoy
-                    update_next = hoy + datetime.timedelta(days=interval)
-
-                head_nfo, serie = videolibrarytools.read_nfo(tvshow_file)                       #Vuelve a leer el.nfo, que ha sido modificado
-                if interval != int(serie.active) or update_next.strftime('%Y-%m-%d') != serie.update_next or update_last.strftime('%Y-%m-%d') != serie.update_last:
-                    serie.update_last = update_last.strftime('%Y-%m-%d')
-                    if update_next > hoy:
-                        serie.update_next = update_next.strftime('%Y-%m-%d')
-                    serie.active = interval
-                    serie.channel = "videolibrary"
-                    serie.action = "get_seasons"
-                    filetools.write(tvshow_file, head_nfo + serie.tojson())
-
-                if serie_actualizada:
-                    if config.get_setting("search_new_content", "videolibrary") == 0:
-                        # Actualizamos la videoteca de Kodi: Buscar contenido en la carpeta de la serie
-                        if config.is_xbmc():
-                            from platformcode import xbmc_videolibrary
-                            xbmc_videolibrary.update(folder=filetools.basename(path))
+                    logger.info("serie=" + serie.contentSerieName)
+                    p_dialog.update(int(math.ceil((i + 1) * t)), heading, serie.contentSerieName)
+                    
+                    #Verificamos el estado del serie.library_playcounts de la Serie por si está incompleto
+                    try:
+                        estado = False
+                        #Si no hemos hecho la verificación o no tiene playcount, entramos
+                        estado = config.get_setting("verify_playcount", "videolibrary")
+                        if not estado or estado == False or not serie.library_playcounts:               #Si no se ha pasado antes, lo hacemos ahora
+                            serie, estado = videolibrary.verify_playcount_series(serie, path)           #También se pasa si falta un PlayCount por completo
+                    except:
+                        logger.error(traceback.format_exc())
                     else:
-                        update_when_finished = True
+                        if estado:                                                                      #Si ha tenido éxito la actualización...
+                            estado_verify_playcount_series = True                                       #... se marca para cambiar la opción de la Videoteca
 
-            if estado_verify_playcount_series:                                                  #Si se ha cambiado algún playcount, ...
-                estado = config.set_setting("verify_playcount", True, "videolibrary")           #... actualizamos la opción de Videolibrary
+                    interval = int(serie.active)  # Podria ser del tipo bool
+
+                    if not serie.active:
+                        # si la serie no esta activa descartar
+                        if overwrite_forced == False:
+                            #Sincronizamos los episodios vistos desde la videoteca de Kodi con la de Alfa, aunque la serie esté desactivada
+                            try:
+                                if config.is_xbmc():                #Si es Kodi, lo hacemos
+                                    from platformcode import xbmc_videolibrary
+                                    xbmc_videolibrary.mark_content_as_watched_on_alfa(path + '/tvshow.nfo')
+                            except:
+                                logger.error(traceback.format_exc())
+                        
+                            continue
+
+                    # obtenemos las fecha de actualizacion y de la proxima programada para esta serie
+                    update_next = serie.update_next
+                    if update_next:
+                        y, m, d = update_next.split('-')
+                        update_next = datetime.date(int(y), int(m), int(d))
+                    else:
+                        update_next = hoy
+
+                    update_last = serie.update_last
+                    if update_last:
+                        y, m, d = update_last.split('-')
+                        update_last = datetime.date(int(y), int(m), int(d))
+                    else:
+                        update_last = hoy
+
+                    # si la serie esta activa ...
+                    if overwrite or config.get_setting("updatetvshows_interval", "videolibrary") == 0:
+                        # ... forzar actualizacion independientemente del intervalo
+                        serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
+                        if not serie_actualizada:
+                            update_next = hoy + datetime.timedelta(days=interval)
+
+                    elif interval == 1 and update_next <= hoy:
+                        # ...actualizacion diaria
+                        serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
+                        if not serie_actualizada and update_last <= hoy - datetime.timedelta(days=7):
+                            # si hace una semana q no se actualiza, pasar el intervalo a semanal
+                            interval = 7
+                            update_next = hoy + datetime.timedelta(days=interval)
+
+                    elif interval == 7 and update_next <= hoy:
+                        # ...actualizacion semanal
+                        serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
+                        if not serie_actualizada:
+                            if update_last <= hoy - datetime.timedelta(days=14):
+                                # si hace 2 semanas q no se actualiza, pasar el intervalo a mensual
+                                interval = 30
+
+                            update_next += datetime.timedelta(days=interval)
+
+                    elif interval == 30 and update_next <= hoy:
+                        # ...actualizacion mensual
+                        serie_actualizada = update(path, p_dialog, i, t, serie, overwrite)
+                        if not serie_actualizada:
+                            update_next += datetime.timedelta(days=interval)
+                            
+                    if serie_actualizada:
+                        update_last = hoy
+                        update_next = hoy + datetime.timedelta(days=interval)
+
+                    head_nfo, serie = videolibrarytools.read_nfo(tvshow_file)   #Vuelve a leer el.nfo, que ha sido modificado
+                    if interval != int(serie.active) or update_next.strftime('%Y-%m-%d') != serie.update_next or update_last.strftime('%Y-%m-%d') != serie.update_last:
+                        serie.update_last = update_last.strftime('%Y-%m-%d')
+                        if update_next > hoy:
+                            serie.update_next = update_next.strftime('%Y-%m-%d')
+                        if serie.infoLabels["status"] != "Ended" and serie.infoLabels["status"] != "Canceled":
+                            serie.active = interval
+                        serie.channel = "videolibrary"
+                        serie.action = "get_seasons"
+                        filetools.write(tvshow_file, head_nfo + serie.tojson())
+
+                    if serie_actualizada:
+                        if config.get_setting("search_new_content", "videolibrary") == 0:
+                            # Actualizamos la videoteca de Kodi: Buscar contenido en la carpeta de la serie
+                            if config.is_xbmc():
+                                from platformcode import xbmc_videolibrary
+                                xbmc_videolibrary.update(folder=filetools.basename(path))
+                        else:
+                            update_when_finished = True
+                except Exception as ex:
+                    logger.error("Se ha producido un error al actualizar la serie %s" % tvshow_file)
+                    template = "An exception of type %s occured. Arguments:\n%r"
+                    message = template % (type(ex).__name__, ex.args)
+                    logger.error(message)
+                    
+
+            if estado_verify_playcount_series:                                  #Si se ha cambiado algún playcount, ...
+                estado = config.set_setting("verify_playcount", True, "videolibrary")   #... actualizamos la opción de Videolibrary
             
             if config.get_setting("search_new_content", "videolibrary") == 1 and update_when_finished:
                 # Actualizamos la videoteca de Kodi: Buscar contenido en todas las series
@@ -246,7 +297,7 @@ def check_for_update(overwrite=True):
         else:
             logger.info("No actualiza la videoteca, está desactivado en la configuración de alfa")
 
-    except Exception, ex:
+    except Exception as ex:
         logger.error("Se ha producido un error al actualizar las series")
         template = "An exception of type %s occured. Arguments:\n%r"
         message = template % (type(ex).__name__, ex.args)
@@ -284,7 +335,9 @@ def start(thread=True):
 
 def monitor_update():
     update_setting = config.get_setting("update", "videolibrary")
+
     # "Actualizar "Una sola vez al dia" o "al inicar Kodi y al menos una vez al dia"
+
     if update_setting == 2 or update_setting == 3:
         hoy = datetime.date.today()
         last_check = config.get_setting("updatelibrary_last_check", "videolibrary")
@@ -301,7 +354,10 @@ def monitor_update():
         # logger.info("Atraso del inicio del dia: %i:00" % update_start)
 
         if last_check <= hoy and datetime.datetime.now().hour == int(update_start):
-            logger.info("Inicio actualizacion programada para las %s h.: %s" % (update_start, datetime.datetime.now()))
+            try:
+                logger.info("Inicio actualizacion programada para las %s h.: %s" % (update_start, datetime.datetime.now()))
+            except:
+                pass
             check_for_update(overwrite=False)
 
 
@@ -310,9 +366,14 @@ if __name__ == "__main__":
     import xbmc
     import time
 
+
     # modo adulto:
     # sistema actual 0: Nunca, 1:Siempre, 2:Solo hasta que se reinicie Kodi
     # si es == 2 lo desactivamos.
+    if config.get_platform(True)['num_version'] >= 17.0:
+        from lib.alfaresolver import updated, update_now
+        if not updated():
+            update_now()
     if config.get_setting("adult_mode") == 2:
         config.set_setting("adult_mode", 0)
 
@@ -321,16 +382,25 @@ if __name__ == "__main__":
     if wait > 0:
         xbmc.sleep(wait)
 
+
     # Verificar quick-fixes al abrirse Kodi, y dejarlo corriendo como Thread
     from platformcode import updater
     updater.check_addon_init()
-    
+
     # Copia Custom code a las carpetas de Alfa desde la zona de Userdata
     from platformcode import custom_code
     custom_code.init()
+
+    # Identifica la dirección Proxy y la lista de alternativas
+    from core import proxytools
+    proxytools.get_proxy_list()
     
     if not config.get_setting("update", "videolibrary") == 2:
         check_for_update(overwrite=False)
+    
+    # Añade al LOG las variables de entorno necesarias para diagnóstico
+    from platformcode import envtal
+    envtal.list_env()
 
     # Se ejecuta ciclicamente
     if config.get_platform(True)['num_version'] >= 14:

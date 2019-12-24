@@ -9,19 +9,20 @@ from channelselector import get_thumb
 from core import httptools
 from core import scrapertools
 from core import servertools
-from core import tmdb
+from core import tmdb, jsontools
 from core.item import Item
 from platformcode import config, logger
 from channels import autoplay
 from channels import filtertools
 
 
-host = 'http://www.cuevana3.com/'
+host = 'https://cuevana3.io/'
+
 
 IDIOMAS = {'Latino': 'LAT', 'Español': 'CAST', 'Subtitulado':'VOSE'}
 list_language = IDIOMAS.values()
 list_quality = []
-list_servers = ['fastplay', 'rapidvideo', 'streamplay', 'flashx', 'streamito', 'streamango', 'vidoza']
+list_servers = ['fastplay', 'directo', 'streamplay', 'flashx', 'streamito', 'streamango', 'vidoza']
 
 
 def mainlist(item):
@@ -31,23 +32,29 @@ def mainlist(item):
 
     itemlist = list()
 
-    itemlist.append(Item(channel=item.channel, title="Ultimas", action="list_all", url=host,
-                         thumbnail=get_thumb('last', auto=True)))
+    itemlist.append(Item(channel=item.channel, title="Todas", action="list_all", url=host+'peliculas',
+                         thumbnail=get_thumb('all', auto=True)))
+    itemlist.append(Item(channel=item.channel, title="Estrenos", action="list_all", url=host+'estrenos',
+                         thumbnail=get_thumb('premieres', auto=True)))
+    itemlist.append(Item(channel=item.channel, title="Mas vistas", action="list_all", url=host+'peliculas-mas-vistas',
+                         thumbnail=get_thumb('more watched', auto=True)))
+    itemlist.append(Item(channel=item.channel, title="Mas votadas", action="list_all", url=host+'peliculas-mas-valoradas',
+                         thumbnail=get_thumb('more voted', auto=True)))
 
     itemlist.append(Item(channel=item.channel, title="Generos", action="section", section='genre',
                          thumbnail=get_thumb('genres', auto=True)))
 
-    itemlist.append(Item(channel=item.channel, title="Castellano", action="list_all", url= host+'espanol',
+    itemlist.append(Item(channel=item.channel, title="Castellano", action="list_all", url= host+'peliculas-espanol',
                          thumbnail=get_thumb('audio', auto=True)))
-
-    itemlist.append(Item(channel=item.channel, title="Latino", action="list_all", url=host + 'latino',
+    
+    itemlist.append(Item(channel=item.channel, title="Latino", action="list_all", url=host + 'peliculas-latino',
                          thumbnail=get_thumb('audio', auto=True)))
-
-    itemlist.append(Item(channel=item.channel, title="VOSE", action="list_all", url=host + 'subtitulado',
+    
+    itemlist.append(Item(channel=item.channel, title="VOSE", action="list_all", url=host + 'peliculas-subtituladas',
                          thumbnail=get_thumb('audio', auto=True)))
-
-    itemlist.append(Item(channel=item.channel, title="Alfabetico", action="section", section='alpha',
-                         thumbnail=get_thumb('alphabet', auto=True)))
+    
+    # itemlist.append(Item(channel=item.channel, title="Alfabetico", action="section", section='alpha',
+    #                     thumbnail=get_thumb('alphabet', auto=True)))
 
     itemlist.append(Item(channel=item.channel, title="Buscar", action="search", url=host+'?s=',
                          thumbnail=get_thumb('search', auto=True)))
@@ -69,17 +76,16 @@ def list_all(item):
     itemlist = []
 
     try:
-        data = get_source(item.url)
-        if item.section == 'alpha':
-          patron = '<span class="Num">\d+.*?<a href="([^"]+)" class.*?'
-          patron += 'src="([^"]+)" class.*?<strong>([^<]+)</strong>.*?<td>(\d{4})</td>'
-        else:
-            patron = '<article id="post-\d+".*?<a href="([^"]+)">.*?'
-            patron += 'src="([^"]+)".*?<h2 class="Title">([^<]+)<\/h2>.*?<span class="Year">([^<]+)<\/span>'
+        # if item.section == 'alpha':
+        #   patron = '<span class="Num">\d+.*?<a href="([^"]+)" class.*?'
+        #   patron += 'src="([^"]+)" class.*?<strong>([^<]+)</strong>.*?<td>(\d{4})</td>'
+        # else:
+        patron = 'class="TPost C post-\d+.*?<a href="([^"]+)">.*?'
+        patron +='"Year">(\d{4})<.*?data-src="([^"]+)".*?"Title">([^"]+)</h2>'
         data = get_source(item.url)
         matches = re.compile(patron, re.DOTALL).findall(data)
 
-        for scrapedurl, scrapedthumbnail, scrapedtitle, year in matches:
+        for scrapedurl, year, scrapedthumbnail, scrapedtitle in matches:
 
             url = scrapedurl
             if "|" in scrapedtitle:
@@ -91,11 +97,11 @@ def list_all(item):
             contentTitle = re.sub('\(.*?\)','', contentTitle)
 
             title = '%s [%s]'%(contentTitle, year)
-            thumbnail = 'http:'+scrapedthumbnail
+            #thumbnail = 'https:'+scrapedthumbnail
             itemlist.append(Item(channel=item.channel, action='findvideos',
                                        title=title,
                                        url=url,
-                                       thumbnail=thumbnail,
+                                       thumbnail=scrapedthumbnail,
                                        contentTitle=contentTitle,
                                        infoLabels={'year':year}
                                        ))
@@ -103,7 +109,7 @@ def list_all(item):
 
         #  Paginación
 
-        url_next_page = scrapertools.find_single_match(data,'<a class="next.*?" rel="next" href="([^"]+)"')
+        url_next_page = scrapertools.find_single_match(data,'<a href="([^"]+)" class="next page-numbers">')
         if url_next_page:
             itemlist.append(Item(channel=item.channel, title="Siguiente >>", url=url_next_page, action='list_all',
                                  section=item.section))
@@ -147,15 +153,16 @@ def findvideos(item):
         if 'domain' in url_data:
             url = scrapertools.find_single_match(url_data, 'domain=([^"]+)"')
         else:
-            url = scrapertools.find_single_match(data, 'id="Opt%s">.*?file=([^"]+)"' % option)
+            url = scrapertools.find_single_match(data, 'id="Opt%s">.*?data-src="([^"]+)"' % option)
 
+        
         if url != '' and 'youtube' not in url:
-                itemlist.append(Item(channel=item.channel, title='%s', url=url, language=IDIOMAS[language],
+                itemlist.append(item.clone(channel=item.channel, title='%s', url=url, language=IDIOMAS[language],
                                      quality=quality, action='play'))
 
     itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % '%s [%s] [%s]'%(i.server.capitalize(),
                                                                                               i.language, i.quality))
-    tmdb.set_infoLabels_itemlist(itemlist, True)
+    
     try:
         itemlist.append(trailer)
     except:
@@ -175,7 +182,6 @@ def findvideos(item):
 
 
     return itemlist
-
 
 def search(item, texto):
     logger.info()
@@ -209,3 +215,62 @@ def newest(categoria):
         return []
 
     return itemlist
+
+def play(item):
+    if 'cuevana' in item.url:
+        if not item.url.startswith('http'):
+            item.url = 'https:%s' % item.url
+        if '/stream' in item.url:
+            url_list = []
+            res = ''
+            ext = 'mp4'
+            api = 'https://api.cuevana3.io/'
+            _id = item.url.partition('?file=')[2]
+            post = urllib.urlencode({'link': _id})
+            try:
+                new_data = httptools.downloadpage(api+"stream/plugins/gkpluginsphp.php", post=post, timeout=2).data
+            except:
+                item.url = ''
+                return [item]
+
+            if new_data and not "error" in new_data:
+                matches = re.compile('"link":"([^"]+)"', re.DOTALL).findall(new_data)
+                itags = {'18': '360p', '22': '720p', '34': '360p', '35': '480p',
+                         '37': '1080p', '43': '360p', '59': '480p'}
+                for link in matches:
+                    item.url = link.replace('\\', '').strip()
+
+                    #tratar con multilinks/multicalidad de gvideo
+                    tag = scrapertools.find_single_match(link,'&itag=(\d+)&')
+                    ext = scrapertools.find_single_match(link,'&mime=.*?/(\w+)&')
+                    if tag:
+                        res = itags[tag]
+                        url_list.append([".%s (%s)" % (ext,res), item.url])
+                if len(matches) > 1 and url_list:
+                    item.password = url_list
+            else:
+                item.url = ''
+            
+        else:
+            url = item.url.replace('gd.php', 'gotogd.php')
+            if 'olpremium/' in item.url:
+                url = item.url.replace('gd.php', 'goto.php')
+            try:
+                link = httptools.downloadpage(url, timeout=4).url
+            except:
+                item.url = ''
+                return [item]
+            shost = 'https://' + link.split("/")[2]
+            vid = scrapertools.find_single_match(link, "\?id=(\w+)")
+            if vid and 'olpremium/' in item.url:
+                surl = shost + '/index/' + vid +  '.m3u8'
+                data = httptools.downloadpage(surl).data
+                item.url = scrapertools.find_single_match(data, r'http.*?\.m3u8')
+                item.server = 'oprem'
+            elif vid and '/rr/' in item.url:
+                item.url = shost+ '/hls/' + vid + '/' + vid + '.playlist.m3u8'
+            else:
+                item.url = ''
+
+    return [item]
+

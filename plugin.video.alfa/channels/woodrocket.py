@@ -31,7 +31,7 @@ def categorias(item):
         scrapedplot = ""
         scrapedthumbnail =  host + scrapedthumbnail
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
-                              thumbnail=scrapedthumbnail, plot=scrapedplot) )
+                              fanart=scrapedthumbnail, thumbnail=scrapedthumbnail, plot=scrapedplot) )
     return itemlist
 
 
@@ -49,7 +49,7 @@ def lista(item):
         title = scrapedtitle
         year = ""
         itemlist.append( Item(channel=item.channel, action="play" , title=title , url=scrapedurl, thumbnail=thumbnail,
-                              plot=plot, contentTitle = contentTitle))
+                              fanart=thumbnail, plot=plot, contentTitle = contentTitle))
     next_page = scrapertools.find_single_match(data,'<li><a href="([^"]+)" rel="next">&raquo;</a></li>')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
@@ -60,13 +60,9 @@ def lista(item):
 def play(item):
     logger.info()
     itemlist = []
-    data = scrapertools.cachePage(item.url)
-    scrapedurl  = scrapertools.find_single_match(data,'<iframe src="(.*?)"')
-    scrapedurl = scrapedurl.replace("pornhub.com/embed/", "pornhub.com/view_video.php?viewkey=")
-    data = httptools.downloadpage(scrapedurl).data
-    scrapedurl = scrapertools.find_single_match(data,'"defaultQuality":true,"format":"mp4","quality":"\d+","videoUrl":"(.*?)"')
-    scrapedurl = scrapedurl.replace("\/", "/")
-    itemlist.append(item.clone(action="play", title=scrapedurl, fulltitle = item.title, url=scrapedurl))
+    data = httptools.downloadpage(item.url).data
+    url  = scrapertools.find_single_match(data,'<iframe src="([^"]+)"')
+    itemlist.append(item.clone(action="play", title= "%s", url=url))
+    itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist
-
 

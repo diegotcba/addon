@@ -7,6 +7,7 @@ from core import scrapertools
 from core.item import Item
 from core import servertools
 from core import httptools
+import base64
 
 host = 'http://www.alsoporn.com'
 
@@ -14,6 +15,7 @@ host = 'http://www.alsoporn.com'
 def mainlist(item):
     logger.info()
     itemlist = []
+    itemlist.append( Item(channel=item.channel, title="Nuevos" , action="lista", url=host + "/g/All/new/1"))
     itemlist.append( Item(channel=item.channel, title="Top" , action="lista", url=host + "/g/All/top/1"))
     itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host))
     itemlist.append( Item(channel=item.channel, title="Buscar", action="search"))
@@ -33,23 +35,6 @@ def search(item, texto):
         return []
 
 
-def catalogo(item):
-    logger.info()
-    itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = scrapertools.get_match(data,'<h3>CLIPS</h3>(.*?)<h3>FILM</h3>')
-    data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
-    patron  = '<li><a href="([^"]+)" title="">.*?'
-    patron  += '<span class="videos-count">([^"]+)</span><span class="title">([^"]+)</span>'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,cantidad,scrapedtitle in matches:
-        scrapedplot = ""
-        scrapedthumbnail = ""
-        itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl, 
-                               thumbnail=scrapedthumbnail, plot=scrapedplot) )
-    return itemlist
-
-
 def categorias(item):
     logger.info()
     itemlist = []
@@ -62,27 +47,29 @@ def categorias(item):
         scrapedplot = ""
         scrapedurl = urlparse.urljoin(item.url,scrapedurl)
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl, 
-                              thumbnail=scrapedthumbnail, plot=scrapedplot) )
-    return itemlist
+                              fanart=scrapedthumbnail, thumbnail=scrapedthumbnail, plot=scrapedplot) )
+    return sorted(itemlist, key=lambda i: i.title)
 
 
 def lista(item):
     logger.info()
     itemlist = []
-    data = scrapertools.cachePage(item.url)
+    data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
     patron = '<div class="alsoporn_prev">.*?'
     patron += '<a href="([^"]+)">.*?'
     patron += '<img src="([^"]+)" alt="([^"]+)">.*?'
-    patron += '<span>([^"]+)</span>'
+    patron += '<span>([^<]+)</span>'
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedthumbnail,scrapedtitle,scrapedtime in matches:
         url = urlparse.urljoin(item.url,scrapedurl)
         title = "[COLOR yellow]" + scrapedtime + "[/COLOR] " + scrapedtitle
         thumbnail = scrapedthumbnail
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
-                              plot=plot, contentTitle = scrapedtitle))
+        if not "0:00" in scrapedtime:
+            itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
+                                  fanart=thumbnail, plot=plot, contentTitle = title))
+
     next_page = scrapertools.find_single_match(data,'<li><a href="([^"]+)" target="_self"><span class="alsoporn_page">NEXT</span></a>')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
@@ -93,13 +80,21 @@ def lista(item):
 def play(item):
     logger.info()
     itemlist = []
-    data = scrapertools.cachePage(item.url)
+    data = httptools.downloadpage(item.url).data
     scrapedurl = scrapertools.find_single_match(data,'<iframe frameborder=0 scrolling="no"  src=\'([^\']+)\'')
-    data = scrapertools.cachePage(scrapedurl)
-    scrapedurl1 = scrapertools.find_single_match(data,'<iframe src="(.*?)"')
-    scrapedurl1 = scrapedurl1.replace("//www.playercdn.com/ec/i2.php?", "https://www.trinitytube.xyz/ec/i2.php?")
-    data = scrapertools.cachePage(scrapedurl1)
-    scrapedurl2 = scrapertools.find_single_match(data,'<source src="(.*?)"')
-    itemlist.append(item.clone(action="play", title=item.title, fulltitle = item.title, url=scrapedurl2))
+    data = httptools.downloadpage(scrapedurl).data
+    scrapedurl = scrapertools.find_single_match(data,'<iframe src="(.*?)"')
+    scrapedurl = scrapedurl.replace("//www.playercdn.com/ec/i2.php?url=", "")
+    logger.debug(scrapedurl)
+    scrapedurl = base64.b64decode(scrapedurl + "=")
+    if "xhamster" in scrapedurl:
+        data = httptools.downloadpage(scrapedurl).data
+        patron = '"([0-9]+p)":"([^"]+)"'
+        matches = re.compile(patron, re.DOTALL).findall(data)
+        for res, url in matches:
+            url = url.replace("\\", "")
+            itemlist.append(["[xhamster] %s" % res, url])
+    else:
+        itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=scrapedurl))
+        itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist
-

@@ -28,6 +28,8 @@ list_language = IDIOMAS.values()
 list_quality = ['Cam', 'TSHQ', 'Dvdrip', 'Blurayrip', 'HD Rip 320p', 'hd rip 320p', 'HD Real 720p', 'Full HD 1080p']
 list_servers = ['openload', 'gamovideo', 'streamplay', 'streamango', 'vidoza']
 
+host = 'https://www.inkapelis.to/'
+
 
 def mainlist(item):
     logger.info()
@@ -35,28 +37,28 @@ def mainlist(item):
     autoplay.init(item.channel, list_servers, list_quality)
     itemlist = []
 
-    itemlist.append(Item(channel=item.channel, title="Novedades", action="entradas", url="http://www.inkapelis.com/",
+    itemlist.append(Item(channel=item.channel, title="Novedades", action="entradas", url=host,
                                extra="Novedades", text_color=color1, thumbnail=get_thumb('newest', auto=True)))
     #itemlist.append(Item(channel=item.channel, title="Estrenos", action="entradas", url="http://www.inkapelis.com/genero/estrenos/",
     #                           text_color=color1, thumbnail=get_thumb('premieres', auto=True)))
     itemlist.append(Item(channel=item.channel, title="Castellano", action="entradas",
-                               url="https://www.inkapelis.com/?anio=&genero=&calidad=&idioma=Castellano&s=",
+                               url=host+"?anio=&genero=&calidad=&idioma=Castellano&s=",
                                extra="Buscar", text_color=color1, thumbnail=get_thumb('espanolas', auto=True)))
 
     itemlist.append(Item(channel=item.channel, title="Latino", action="entradas",
-                               url="https://www.inkapelis.com/?anio=&genero=&calidad=&idioma=Latino&s=",
+                               url=host+"?anio=&genero=&calidad=&idioma=Latino&s=",
                                extra="Buscar", text_color=color1, thumbnail=get_thumb('latino', auto=True)))
 
     itemlist.append(Item(channel=item.channel, title="VOSE", action="entradas",
-                               url="https://www.inkapelis.com/?anio=&genero=&calidad=&idioma=Subtitulada&s=",
+                               url=host+"?anio=&genero=&calidad=&idioma=Subtitulada&s=",
                                extra="Buscar", text_color=color1, thumbnail=get_thumb('newest', auto=True)))
 
-    itemlist.append(Item(channel=item.channel, title="Géneros", action="generos", url="http://www.inkapelis.com/", text_color=color1,
+    itemlist.append(Item(channel=item.channel, title="Géneros", action="generos", url=host, text_color=color1,
                                thumbnail=get_thumb('genres', auto=True),))
-    itemlist.append(Item(channel=item.channel, title="Buscar...", action="search", url="http://www.inkapelis.com/?s=", text_color=color1))
+    itemlist.append(Item(channel=item.channel, title="Buscar...", action="search", url=host+"?s=", text_color=color1))
     itemlist.append(Item(channel=item.channel, action="", title=""))
     itemlist.append(
-        Item(channel=item.channel, action="filtro", title="Filtrar películas", url="http://www.inkapelis.com/?s=", text_color=color1))
+        Item(channel=item.channel, action="filtro", title="Filtrar películas", url=host+"?s=", text_color=color1))
     # Filtros personalizados para peliculas
     for i in range(1, 4):
         filtros = config.get_setting("pers_peliculas" + str(i), item.channel)
@@ -65,7 +67,7 @@ def mainlist(item):
             new_item = item.clone()
             new_item.values = filtros
             itemlist.append(
-                new_item.clone(action="filtro", title=title, url="http://www.inkapelis.com/?s=", text_color=color2))
+                new_item.clone(action="filtro", title=title, url=host+"?s=", text_color=color2))
     itemlist.append(Item(channel=item.channel, action="configuracion", title="Configurar canal...", text_color="gold", folder=False))
 
     autoplay.show_option(item.channel, itemlist)
@@ -86,21 +88,21 @@ def newest(categoria):
     item = Item()
     try:
         if categoria == "peliculas":
-            item.url = "http://www.inkapelis.com/"
+            item.url = host
             item.action = "entradas"
             item.extra = "Novedades"
 
         if categoria == "terror":
-            item.url = "https://www.inkapelis.com/genero/terror/"
+            item.url = host+"genero/terror/"
             item.action = "entradas"
 
         if categoria == "castellano":
-            item.url = "https://www.inkapelis.com/?anio=&genero=&calidad=&idioma=Castellano&s="
+            item.url = host+"?anio=&genero=&calidad=&idioma=Castellano&s="
             item.extra = "Buscar"
             item.action = "entradas"
 
         if categoria == "latino":
-            item.url = "https://www.inkapelis.com/?anio=&genero=&calidad=&idioma=Latino&s="
+            item.url = host+"?anio=&genero=&calidad=&idioma=Latino&s="
             item.extra = "Buscar"
             item.action = "entradas"
         itemlist = entradas(item)
@@ -122,7 +124,7 @@ def search(item, texto):
     logger.info()
     itemlist = []
     item.extra = "Buscar"
-    item.url = "http://www.inkapelis.com/?s=%s" % texto
+    item.url = host+"?s=%s" % texto
 
     try:
         return entradas(item)
@@ -254,7 +256,7 @@ def filtrado(item, values):
 
     item.valores = "Filtro: " + ", ".join(sorted(strings))
     item.strings = ""
-    item.url = "http://www.inkapelis.com/?anio=%s&genero=%s&calidad=%s&idioma=%s&s=%s" % \
+    item.url = host+"?anio=%s&genero=%s&calidad=%s&idioma=%s&s=%s" % \
                (year, genero, calidad, idioma, texto)
     item.extra = "Buscar"
 
@@ -268,6 +270,7 @@ def entradas(item):
     item.text_color = color2
     # Descarga la página
     data = httptools.downloadpage(item.url).data
+    data = re.sub("\n", "", data)
     if "valores" in item and item.valores:
         itemlist.append(item.clone(action="", title=item.valores, text_color=color4))
 
@@ -284,15 +287,15 @@ def entradas(item):
                 title = scrapedtitle
                 calidad = calidad.strip()
 
-                itemlist.append(Item(channel=item.channel, action="findvideos", title=title, url=scrapedurl, thumbnail=thumbnail,
-                                           contentTitle=scrapedtitle, fulltitle=scrapedtitle,
-                                           context=["buscar_trailer"],
-                                           contentType="movie"))
+                itemlist.append(Item(channel=item.channel, action="findvideos", title=title, 
+                                     url=scrapedurl, thumbnail=thumbnail, contentType="movie",
+                                     contentTitle=scrapedtitle, context=["buscar_trailer"],
+                                    ))
 
     else:
         # Extrae las entradas
         if item.extra == "Novedades":
-            data2 = data.split("<h3>Últimas Películas Agregadas</h3>", 1)[1]
+            data2 = data.split(">Últimas Películas Agregadas y Actualizadas<", 1)[1]
             entradas = scrapertools.find_multiple_matches(data2, '<div class="col-mt-5 postsh">(.*?)</div></div></div>')
         else:
             entradas = scrapertools.find_multiple_matches(data, '<div class="col-mt-5 postsh">(.*?)</div></div></div>')
@@ -327,7 +330,7 @@ def entradas(item):
                 filtro_list = filtro_list.items()
 
                 itemlist.append(Item(channel=item.channel, action="findvideos", title=title, url=url, contentTitle=scrapedtitle,
-                                           fulltitle=scrapedtitle, thumbnail=thumbnail, context=["buscar_trailer"],
+                                           thumbnail=thumbnail, context=["buscar_trailer"],
                                            contentType="movie", infoLabels={'filtro': filtro_list}))
 
     tmdb.set_infoLabels_itemlist(itemlist, __modo_grafico__)
@@ -378,6 +381,7 @@ def findvideos(item):
 
     # Descarga la pagina
     data = httptools.downloadpage(item.url).data
+    data = re.sub("\n", "", data)
     sinopsis = scrapertools.find_single_match(data, '<h2>Sinopsis</h2>.*?>(.*?)</p>')
     item.infoLabels["plot"] = scrapertools.htmlclean(sinopsis)
     # Busca en tmdb si no se ha hecho antes
@@ -406,8 +410,9 @@ def findvideos(item):
         if server == "Ul":
             server = "Uploaded"
         title = "%s  [%s][%s]" % (server, idioma, calidad)
-        itemlist.append(Item(channel=item.channel, action="play", title=title, url=url, language=idioma, quality=calidad,
-                                   server=server, infoLabels=item.infoLabels))
+
+        itemlist.append(Item(channel=item.channel, action="play", title=title, url=url, language=idioma,
+                             quality=calidad, server=server, infoLabels=item.infoLabels))
 
     patron = 'id="(embed[0-9]*)".*?<div class="calishow">(.*?)<.*?src="([^"]+)"'
     matches = scrapertools.find_multiple_matches(data, patron)
@@ -415,10 +420,22 @@ def findvideos(item):
         title = scrapertools.find_single_match(url, "(?:http://|https://|//)(.*?)(?:embed.|videoembed|)/")
         if re.search(r"(?i)inkapelis|goo.gl", title):
             title = "Directo"
+            try:
+                server = "directo"
+                old_url = url
+                new_data = httptools.downloadpage(url, headers={'referer':item.url}).data
+                hidden_url = scrapertools.find_single_match(new_data, 'sources: \[\{ file: "([^"]+)"')
+                url = httptools.downloadpage(hidden_url, headers={'referer':old_url},
+                                             follow_redirects=False).headers['location']
+                url = url.replace(' ', '%20')
+            except:
+                pass
         idioma = scrapertools.find_single_match(data, 'href="#%s".*?>([^<]+)<' % id_embed)
         title = "%s  [%s][%s]" % (title.capitalize(), idioma, calidad)
-        itemlist.append(Item(channel=item.channel, action="play", title=title, url=url, language=idioma, quality=calidad,
-                                   server=server))
+
+        title = re.sub(r"www.|.com", "", title.lower()).capitalize()
+        itemlist.append(Item(channel=item.channel, action="play", title=title, url=url, language=idioma,
+                             quality=calidad, server=server))
     # Requerido para FilterTools
 
     itemlist = filtertools.get_links(itemlist, item, list_language)
@@ -434,8 +451,8 @@ def findvideos(item):
         if item.extra != "library":
             if config.get_videolibrary_support():
                 itemlist.append(Item(channel=item.channel, title="Añadir película a la videoteca",
-                                     action="add_pelicula_to_library", url=item.url, fulltitle=item.fulltitle,
-                                     infoLabels={'title': item.fulltitle}, text_color="green", extra="library"))
+                                     action="add_pelicula_to_library", url=item.url, contentTitle=item.contentTitle,
+                                     infoLabels={'title': item.contentTitle}, text_color="green", extra="library"))
 
     return itemlist
 
@@ -443,16 +460,19 @@ def findvideos(item):
 def play(item):
     logger.info()
     itemlist = []
-    if "drive.php?v=" in item.url or "//goo.gl/" in item.url:
-        data = httptools.downloadpage(item.url).data.replace("\\", "")
-        matches = scrapertools.find_multiple_matches(data, '"label":(.*?),.*?type":".*?/([^"]+)".*?file":"([^"]+)"')
-        for calidad, ext, url in matches:
-            title = ".%s %s [directo]" % (ext, calidad)
-            itemlist.insert(0, [title, url])
+    if item.server != 'directo':
+        if "drive.php?v=" in item.url or "//goo.gl/" in item.url:
+            data = httptools.downloadpage(item.url).data.replace("\\", "")
+            matches = scrapertools.find_multiple_matches(data, '"label":(.*?),.*?type":".*?/([^"]+)".*?file":"([^"]+)"')
+            for calidad, ext, url in matches:
+                title = ".%s %s [directo]" % (ext, calidad)
+                itemlist.insert(0, [title, url])
+        else:
+            itemlist = servertools.find_video_items(data=item.url)
+
+        for videoitem in itemlist:
+            videoitem.infoLabels=item.infoLabels
+
     else:
-        itemlist = servertools.find_video_items(data=item.url)
-
-    for videoitem in itemlist:
-        videoitem.infoLabels=item.infoLabels
-
+        itemlist.append(item)
     return itemlist

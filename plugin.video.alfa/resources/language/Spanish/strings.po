@@ -502,8 +502,8 @@ msgid "Filter server (Black List)"
 msgstr "Filtrar servidores (Lista Negra)"
 
 msgctxt "#60001"
-msgid "Filter server (Black List)\nNo connection available that meets the requirements of the Black list.\nTry again by changing the filter in 'Server Configuration"
-msgstr "Filtrar servidores (Lista Negra)\nNo hay enlaces disponibles que cumplan los requisitos de su Lista Negra.\nPruebe de nuevo modificando el fíltro en 'Configuracíon Servidores"
+msgid "No links available that meets the requirements of the Black list. Try again by changing the filter in 'Server Configuration"
+msgstr "No hay enlaces disponibles que cumplan los requisitos de su Lista Negra. Pruebe de nuevo modificando el filtro en 'Configuracíon - Servidores"
 
 msgctxt "#60003"
 msgid "Connecting with %s"
@@ -1046,8 +1046,8 @@ msgid "Movie"
 msgstr "Película"
 
 msgctxt "#60245"
-msgid "Series"
-msgstr "Serie"
+msgid "tv show"
+msgstr "serie"
 
 msgctxt "#60246"
 msgid "Full information"
@@ -4263,10 +4263,6 @@ msgctxt "#70392"
 msgid "Rate with a [COLOR %s]%s[/ COLOR]"
 msgstr "Puntuar con un [COLOR %s]%s[/COLOR]"
 
-msgctxt "#70393"
-msgid "[%s]: Select the correct %s "
-msgstr "[%s]: Selecciona la %s correcta"
-
 msgctxt "#70394"
 msgid "Action"
 msgstr "Accion"
@@ -4731,10 +4727,6 @@ msgctxt "#70508"
 msgid "Search in Abandomoviez"
 msgstr "Búsqueda en Abandomoviez"
 
-msgctxt "#70509"
-msgid "Search in Jayhap (Youtube, Vimeo & Dailymotion)"
-msgstr "Búsqueda en Jayhap (Youtube, Vimeo & Dailymotion)"
-
 msgctxt "#70510"
 msgid "Manual Search in Youtube"
 msgstr "Búsqueda Manual en Youtube"
@@ -4810,10 +4802,6 @@ msgstr "Mis enlaces"
 msgctxt "#70528"
 msgid "Default folder"
 msgstr "Carpeta por defecto"
-
-msgctxt "#70529"
-msgid "Repeated link"
-msgstr "Enlace repetido"
 
 msgctxt "#70530"
 msgid "You already have this link in the folder"
@@ -4943,11 +4931,6 @@ msgctxt "#70561"
 msgid "Search Similar"
 msgstr "Buscar Similares"
 
-
-
-
-
-
-
-
-
+msgctxt "#70562"
+msgid "Autoplay (Enable autoplay on all supported channels)"
+msgstr "Autoplay (Habilitar autoplay en todos los canales soportados)"

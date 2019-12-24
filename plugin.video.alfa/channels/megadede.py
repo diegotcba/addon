@@ -61,8 +61,7 @@ def login():
     headers = {"User-Agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/66.0.3163.100 Safari/537.36", "Referer": host, "X-Requested-With": "XMLHttpRequest","X-CSRF-TOKEN":
         token}
-    data = httptools.downloadpage(host+"/login", post=post, headers=headers,
-                                  replace_headers=False).data
+    data = httptools.downloadpage(host+"/login", post=post, headers=headers).data
     if "redirect" in data:
         return True
     else:
@@ -185,7 +184,7 @@ def generos(item):
         url =  host + "/" + tipo + "?genre_id=" + id_genere
         itemlist.append(
             Item(channel=item.channel, action="peliculas", title=title, url=url, thumbnail=thumbnail, plot=plot,
-                 fulltitle=title))
+                 contentTitle=title))
     return itemlist
 
 
@@ -218,7 +217,7 @@ def parse_mixed_results(item, data):
     itemlist = []
     patron = '<div class="media-dropdown mini dropdown model" data-value="([^"]+)"+'
     patron += '.*?<a href="([^"]+)"[^<]data-toggle="tooltip" data-container="body"+'
-    patron += ' data-delay="500" title="([^"]+)"[^<]+'
+    patron += ' data-delay="500" title="(.*?)"[^<]+'
     patron += '.*?src="([^"]+)"+'
     patron += '.*?<div class="year">([^<]+)</div>+'
     patron += '.*?<div class="value"><i class="fa fa-star"></i> ([^<]+)</div>'
@@ -242,7 +241,7 @@ def parse_mixed_results(item, data):
         title += scrapertools.htmlclean(scrapedtitle)
         if scrapedyear != '':
             title += " (" + scrapedyear + ")"
-        fulltitle = title
+        contentTitle = scrapedtitle
         if scrapedvalue != '':
             title += " (" + scrapedvalue + ")"
         thumbnail = urlparse.urljoin(item.url, scrapedthumbnail)
@@ -258,15 +257,15 @@ def parse_mixed_results(item, data):
             url = urlparse.urljoin(item.url, scrapedurl)
             if item.tipo != "series":
                 itemlist.append(Item(channel=item.channel, action="findvideos", title=title, extra=referer, url=url,
-                                     thumbnail=thumbnail, plot=plot, fulltitle=fulltitle, fanart=fanart,
-                                     contentTitle=scrapedtitle, contentType="movie", context=["buscar_trailer"]))
+                                     thumbnail=thumbnail, plot=plot, contentTitle=contentTitle, fanart=fanart,
+                                     contentType="movie", context=["buscar_trailer"]))
         else:
             referer = item.url
             url = urlparse.urljoin(item.url, scrapedurl)
             if item.tipo != "pelis":
                 itemlist.append(Item(channel=item.channel, action="episodios", title=title, extra=referer, url=url,
-                                     thumbnail=thumbnail, plot=plot, fulltitle=fulltitle, show=title, fanart=fanart,
-                                     contentTitle=scrapedtitle, contentType="tvshow", context=["buscar_trailer"]))
+                                     thumbnail=thumbnail, plot=plot, contentTitle=contentTitle, show=title, fanart=fanart,
+                                     contentType="tvshow", context=["buscar_trailer"]))
     next_page = scrapertools.find_single_match(data,
                                                '<div class="onclick load-more-icon no-json" data-action="replace" data-url="([^"]+)">')
     if next_page != "":
@@ -310,7 +309,7 @@ def siguientes(item):  # No utilizada
         url = referer
         itemlist.append(
             Item(channel=item.channel, action="episodio", title=title, url=url, thumbnail=thumbnail, plot=plot,
-                 fulltitle=title, show=title, fanart=fanart, extra=session + "|" + episode))
+                 contentTitle=title, show=title, fanart=fanart, extra=session + "|" + episode))
     return itemlist
 
 
@@ -338,7 +337,7 @@ def episodio(item):
             url = host + "/links/viewepisode/id/" + epid
             itemlist.append(
                 Item(channel=item.channel, action="findvideos", title=title, url=url, thumbnail=thumbnail, plot=plot,
-                     fulltitle=title, fanart=item.fanart, show=item.show))
+                     contentTitle=title, fanart=item.fanart, show=item.show))
     itemlist2 = []
     for capitulo in itemlist:
         itemlist2 = findvideos(capitulo)
@@ -391,7 +390,7 @@ def episodios(item):
             url = host + scrapedurl
             itemlist.append(
                 Item(channel=item.channel, action="findvideos", nom_serie=item.title, tipo="5", title=title, url=url,
-                     thumbnail=thumbnail, plot=plot, fulltitle=title, fanart=fanart, show=item.show))
+                     thumbnail=thumbnail, plot=plot, contentTitle=title, fanart=fanart, show=item.show))
 
 
     if config.get_videolibrary_support():
@@ -492,6 +491,13 @@ def findvideos(item, verTodos=False):
     logger.info()
     data = httptools.downloadpage(item.url).data
     data_model = scrapertools.find_single_match(data, 'data-model="([^"]+)"')
+    if not data_model:
+        try:
+            login()
+            data = httptools.downloadpage(item.url).data
+            data_model = scrapertools.find_single_match(data, 'data-model="([^"]+)"')
+        except:
+            pass
     data_id = scrapertools.find_single_match(data, 'data-id="([^"]+)"')
     trailer = "https://www.youtube.com/watch?v=" + scrapertools.find_single_match(data,
                                                                                   'data-youtube="([^"]+)" class="youtube-link')
@@ -541,6 +547,7 @@ def findvideos(item, verTodos=False):
             "  ", "").replace("\n", "")
         thumb_servidor = scrapertools.find_single_match(match, '<img src="([^"]+)">')
         nombre_servidor = scrapertools.find_single_match(thumb_servidor, "hosts/([^\.]+).png")
+        server = nombre_servidor.lower().strip()
         if jdown != '':
             title = "Download " + nombre_servidor + " (" + idioma + ") (Calidad " + calidad_video.strip() + ", audio " + calidad_audio.strip() + ")"
         else:
@@ -571,13 +578,13 @@ def findvideos(item, verTodos=False):
                 valora_calidad(calidad_video, calidad_audio) * 1000) + valoracion
             itemsort.append(
                 {'action': "play", 'title': title, 'data_id': data_id, 'token': token, 'tipo': data_model, 'url': url,
-                 'thumbnail': thumbnail, 'fanart': item.fanart, 'plot': plot, 'extra': item.url,
-                 'fulltitle': item.fulltitle, 'orden1': (jdown == ''), 'orden2': orden})
+                 'thumbnail': thumbnail, 'fanart': item.fanart, 'plot': plot, 'extra': item.url, 'server': server,
+                 'contentTitle': item.contentTitle, 'orden1': (jdown == ''), 'orden2': orden})
         else:
             itemlist.append(
                 Item(channel=item.channel, action="play", data_id=data_id, token=token, tipo=data_model, title=title,
                      url=url, thumbnail=thumbnail, fanart=item.fanart, plot=plot, extra=item.url,
-                     fulltitle=item.fulltitle))
+                     contentTitle=item.contentTitle, server=server))
 
     if sortlinks > 0:
         numberlinks = config.get_setting("megadedenumberlinks", item.channel)  # 0:todos, > 0:n*5 (5,10,15,20,...)
@@ -599,7 +606,7 @@ def findvideos(item, verTodos=False):
                 Item(channel=item.channel, action=subitem['action'], title=subitem['title'], data_id=subitem['data_id'],
                      token=subitem['token'], tipo=subitem['tipo'], url=subitem['url'], thumbnail=subitem['thumbnail'],
                      fanart=subitem['fanart'], plot=subitem['plot'], extra=subitem['extra'],
-                     fulltitle=subitem['fulltitle']))
+                     contentTitle=subitem['contentTitle'], server=subitem['server']))
     if data_model == "4":
         itemlist.append(
             Item(channel=item.channel, action="megadede_check", tipo="4", token=token, title="Marcar como Pendiente",
@@ -629,7 +636,7 @@ def play(item):
         itemlist = servertools.find_video_items(data=url)
         for videoitem in itemlist:
             videoitem.title = item.title
-            videoitem.fulltitle = item.fulltitle
+            videoitem.contentTitle = item.contentTitle
             videoitem.thumbnail = item.thumbnail
             videoitem.channel = item.channel
         return itemlist
@@ -646,7 +653,7 @@ def play(item):
         itemlist = servertools.find_video_items(data=media_url)
         for videoitem in itemlist:
             videoitem.title = item.title
-            videoitem.fulltitle = item.fulltitle
+            videoitem.contentTitle = item.contentTitle
             videoitem.thumbnail = item.thumbnail
             videoitem.channel = item.channel
         try:
@@ -671,7 +678,7 @@ def checkseen(item):
         headers = {"User-Agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) "
                                  "Chrome/61.0.3163.100 Safari/537.36", "Referer": host + "/serie/",
                    "X-Requested-With": "XMLHttpRequest", "X-CSRF-TOKEN": item.token}
-    data = httptools.downloadpage(url_temp, post="id=" + item.idtemp, headers=headers, replace_headers=True).data
+    data = httptools.downloadpage(url_temp, post="id=" + item.idtemp, headers=headers).data
     return True
 
 
@@ -797,8 +804,7 @@ def megadede_check(item):
         headers = {"User-Agent":"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko) "
                                 "Chrome/61.0.3163.100 Safari/537.36","Referer": host + "/" + tipo_str, "X-Requested-With": "XMLHttpRequest",
                    "X-CSRF-TOKEN": item.token}
-        data = httptools.downloadpage(url_temp, post="id=" + item.idtemp, headers=headers,
-                                      replace_headers=True).data.strip()
+        data = httptools.downloadpage(url_temp, post="id=" + item.idtemp, headers=headers).data.strip()
         dialog = platformtools
         dialog.ok = platformtools.dialog_ok
         if data == "1":

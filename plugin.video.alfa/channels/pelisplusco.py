@@ -7,7 +7,6 @@ import re
 import urllib
 from platformcode import logger
 from platformcode import config
-from core import jsontools
 from core import scrapertools
 from core.item import Item
 from core import servertools
@@ -23,12 +22,8 @@ list_quality = ['360p', '480p', '720p', '1080p']
 list_servers = ['mailru', 'openload',  'streamango', 'estream']
 
 
-host = 'http://pelisplus.co'
-CHANNEL_HEADERS = [
-                  ["Host", host.replace("http://","")],
-                  ["X-Requested-With", "XMLHttpRequest"]
-                  ]
-
+host = 'https://pelisplus.me'
+CHANNEL_HEADERS = {"X-Requested-With": "XMLHttpRequest"}
 
 def mainlist(item):
     logger.info()
@@ -99,9 +94,9 @@ def sub_search(item):
     logger.info()
     itemlist =[]
     headers = {'Referer':host, 'X-Requested-With': 'XMLHttpRequest'}
-    data = httptools.downloadpage(item.url, headers=headers).data
-    dict_data = jsontools.load(data)
+    dict_data = httptools.downloadpage(item.url, headers=headers).json
     list =dict_data["data"] [item.type]
+
     if item.type == "m":
         action = "findvideos"
     else:
@@ -109,7 +104,7 @@ def sub_search(item):
     for dict in list:
         itemlist.append(item.clone(channel = item.channel,
                              action = action,
-                             fulltitle = dict["title"],
+                             contentTitle = dict["title"],
                              show = dict["title"],
                              infoLabels={"year":dict["release_year"]},
                              thumbnail = "http://static.pelisfox.tv/static/movie/" + dict["cover"],
@@ -253,7 +248,6 @@ def seccion(item):
         itemlist.append(
             Item(action="list_all",
                  channel=item.channel,
-                 fulltitle=item.title,
                  page = "1",
                  slug = slug,
                  title=title,
@@ -324,14 +318,15 @@ def season_episodes(item):
     logger.info()
     itemlist = []
 
-    full_data = httptools.downloadpage(item.url).data
+    full_data = httptools.downloadpage(item.url+'/').data
     full_data = re.sub(r'\n|\r|\t|&nbsp;|<br>|\s{2,}', "", full_data)
+
     season = str(item.infoLabels['season'])
     if int(season) <= 9:
         season = '0'+season
     data = scrapertools.find_single_match(full_data, '</i>Temporada %s</div>(.*?)(?:down arrow|cuadre_comments)' % season)
     patron = '<a href="([^"]+)" title=".*?i-play"><\/i> (.*?)<\/a>'
-    matches = matches = re.compile(patron, re.DOTALL).findall(data)
+    matches = re.compile(patron, re.DOTALL).findall(data)
     infoLabels = item.infoLabels
     for url, episode in matches:
         episodenumber = re.sub('C.* ','',episode)
@@ -354,7 +349,7 @@ def get_links_by_language(item, data):
     video_list = []
 
     language = scrapertools.find_single_match(data, 'ul id="level\d_([^"]+)"\s*class=')
-    patron = 'data-source="([^"]+)"data-quality="([^"]+)"data-srt="([^"]+)"'
+    patron = 'data-source="([^"]+)"data-quality="([^"]+)"data-srt="([^"]+)?"'
     matches = re.compile(patron, re.DOTALL).findall(data)
     if language in IDIOMAS:
         language = IDIOMAS[language]
@@ -390,16 +385,23 @@ def get_links_by_language(item, data):
 
 def findvideos(item):
     logger.info()
-    itemlist = []
     video_list = []
+    CHANNEL_HEADERS.update({'Referer': item.url})
+    
     if item.contentType == 'movie':
-        new_url = new_url = item.url.replace('/pelicula/', '/player/%s/' % item.contentType)
+        new_url = item.url.replace('/pelicula/', '/player/%s/' % item.contentType)
+        new_url = re.sub('/p\d+/', '/', new_url)
     else:
         base_url = scrapertools.find_single_match(item.url, '(.*?)/temporada')
         new_url = base_url.replace('/serie/', '/player/serie/')
         new_url += '|%s|%s/'  % (item.contentSeason, item.contentEpisodeNumber)
-    data = get_source(new_url, referer=item.url)
 
+    data_json = httptools.downloadpage(new_url, headers=CHANNEL_HEADERS).json
+    data = re.sub(r'\n|\r|\t|&nbsp;|<br>|\s{2,}', "", data_json.get('html', ''))
+    
+    if not data:
+        return video_list
+    
     patron_language ='(<ul id="level\d_.*?"*class=.*?ul>)'
     matches = re.compile(patron_language, re.DOTALL).findall(data)
 

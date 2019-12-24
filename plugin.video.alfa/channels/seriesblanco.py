@@ -31,9 +31,9 @@ def mainlist(item):
     itemlist = []
 
     itemlist.append(Item(channel=item.channel,
-                         title="Nuevos Capitulos",
-                         action="new_episodes",
-                         thumbnail=get_thumb('new_episodes', auto=True),
+                         title="Últimas series",
+                         action="new_series",
+                         thumbnail=get_thumb('last', auto=True),
                          url=host))
 
     itemlist.append(Item(channel=item.channel,
@@ -114,6 +114,49 @@ def list_all(item):
                                  ))
     return itemlist
 
+def list_from_genre(item):
+    logger.info()
+
+    itemlist = []
+    data = get_source(item.url)
+    contentSerieName = ''
+
+    patron = '<div style="float.*?<a href="([^"]+)">.*?src="([^"]+)"'
+    matches = re.compile(patron, re.DOTALL).findall(data)
+
+    for scrapedurl, scrapedthumbnail in matches:
+        url = scrapedurl
+        thumbnail = scrapedthumbnail
+        title = scrapertools.find_single_match(scrapedurl, 'https://seriesblanco.org/capitulos/([^/]+)/')
+        title = title.replace('-', ' ').capitalize()
+
+        itemlist.append(Item(channel=item.channel,
+                             action='seasons',
+                             title=title,
+                             url=url,
+                             thumbnail=thumbnail,
+                             contentSerieName=title,
+                             context=filtertools.context(item, list_language, list_quality),
+                             ))
+
+    tmdb.set_infoLabels_itemlist(itemlist, seekTmdb=True)
+
+    # #Paginacion
+
+    if itemlist != []:
+        next_page = scrapertools.find_single_match(data, '<a href="([^"]+)" ><i class="Next')
+        if next_page != '':
+            itemlist.append(Item(channel=item.channel,
+                                 action="list_from_genre",
+                                 title='Siguiente >>>',
+                                 url=next_page,
+                                 thumbnail='https://s16.postimg.cc/9okdu7hhx/siguiente.png',
+                                 ))
+    return itemlist
+
+
+
+
 def section(item):
     logger.info()
 
@@ -121,8 +164,10 @@ def section(item):
     data = get_source(item.url)
     if item.title == 'Generos':
         patron = '<li><a href="([^ ]+)"><i class="fa fa-bookmark-o"></i> ([^<]+)</a></li>'
+        action = 'list_from_genre'
     elif item.title == 'A - Z':
         patron = '<a dir="ltr" href="([^"]+)" class="label label-primary">([^<]+)</a>'
+        action = 'list_all'
     matches = re.compile(patron, re.DOTALL).findall(data)
 
     for scrapedurl, scrapedtitle in matches:
@@ -130,7 +175,7 @@ def section(item):
         url = scrapedurl
         title = scrapedtitle
         itemlist.append(Item(channel=item.channel,
-                             action='list_all',
+                             action=action,
                              title=title,
                              url=url
                              ))
@@ -235,7 +280,33 @@ def new_episodes(item):
                              thumbnail=thumbnail,
                              language=language,
                               ))
-        tmdb.set_infoLabels_itemlist(itemlist, seekTmdb=True)
+    tmdb.set_infoLabels_itemlist(itemlist, seekTmdb=True)
+
+    return itemlist
+
+def new_series(item):
+    logger.info()
+    itemlist = []
+
+    data = get_source(item.url)
+    data = scrapertools.find_single_match(data,
+                                          '>Series Online gratis más vistas</center>.*?</ul>')
+    patron = '<a href="([^"]+)"><img src="([^"]+)".*?alt="(.*?)"'
+    matches = re.compile(patron, re.DOTALL).findall(data)
+
+    for scrapedurl, scrapedthumbnail, scrapedtitle in matches:
+
+        url =scrapedurl
+        thumbnail = scrapedthumbnail
+        title = scrapedtitle.capitalize()
+        itemlist.append(Item(channel=item.channel,
+                             action='seasons',
+                             title=title,
+                             url=url,
+                             contentSerieName=scrapedtitle,
+                             thumbnail=thumbnail
+                              ))
+    tmdb.set_infoLabels_itemlist(itemlist, seekTmdb=True)
 
     return itemlist
 

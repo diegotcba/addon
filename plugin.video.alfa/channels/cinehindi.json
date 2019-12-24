@@ -1,9 +1,9 @@
 {
   "id": "cinehindi",
   "name": "CineHindi",
-  "active": true,
+  "active": false,
   "adult": false,
-  "language": ["cast", "lat"],
+  "language": ["vos"],
   "thumbnail": "cinehindi.png",
   "banner": "http://i.imgur.com/cau9TVe.png",
   "categories": [

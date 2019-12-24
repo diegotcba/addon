@@ -26,9 +26,9 @@ def mainlist(item):
     autoplay.init(item.channel, list_servers, list_quality)
     itemlist = list()
     itemlist.append(Item(channel=item.channel, action="genero", title="Generos", url=host, thumbnail = get_thumb("genres", auto = True)))
-    itemlist.append(Item(channel=item.channel, action="lista", title="Novedades", url=host, thumbnail = get_thumb("newest", auto = True)))
-    itemlist.append(Item(channel=item.channel, action="proximas", title="Próximas Películas",
-                         url=urlparse.urljoin(host, "proximamente")))
+    itemlist.append(Item(channel=item.channel, action="lista", title="Novedades", url=host, thumbnail = get_thumb("newest", auto = True), page=1))
+    #itemlist.append(Item(channel=item.channel, action="proximas", title="Próximas Películas",
+    #                     url=urlparse.urljoin(host, "proximamente")))
     itemlist.append(Item(channel=item.channel, title="Buscar", action="search", url=urlparse.urljoin(host, "?s="), thumbnail = get_thumb("search", auto = True)))
     autoplay.show_option(item.channel, itemlist)
     return itemlist
@@ -38,13 +38,13 @@ def genero(item):
     logger.info()
     itemlist = list()
     data = httptools.downloadpage(host).data
-    patron  = 'level-0.*?value="([^"]+)"'
-    patron += '>([^<]+)'
+    patron  = '<option class=.*? value=([^<]+)>'
+    patron += '([^<]+)<\/option>'
     matches = scrapertools.find_multiple_matches(data, patron)
     for scrapedurl, scrapedtitle in matches:
         if 'Próximas Películas' in scrapedtitle:
             continue
-        itemlist.append(item.clone(action='lista', title=scrapedtitle, cat=scrapedurl))
+        itemlist.append(item.clone(action='lista', title=scrapedtitle, cat=scrapedurl, page=1))
     return itemlist
 
 
@@ -91,39 +91,59 @@ def lista(item):
     itemlist = []
     if not item.cat:
         data = httptools.downloadpage(item.url).data
+        url = item.url
     else:
         url = httptools.downloadpage("%s?cat=%s" %(host, item.cat), follow_redirects=False, only_headers=True).headers.get("location", "")
         data = httptools.downloadpage(url).data
-    bloque = scrapertools.find_single_match(data, """class="item_1 items.*?id="paginador">""")
-    patron = 'class="item">.*?'  # Todos los items de peliculas (en esta web) empiezan con esto
-    patron += '<a href="([^"]+).*?'  # scrapedurl
-    patron += '<img src="([^"]+).*?'  # scrapedthumbnail
-    patron += 'alt="([^"]+).*?'  # scrapedtitle
-    patron += '<div class="fixyear">(.*?)</span></div><'  # scrapedfixyear
+    bloque = data#scrapertools.find_single_match(data, """class="item_1 items.*?id="paginador">""")
+    patron = '<div id=mt.+?>'  # Todos los items de peliculas (en esta web) empiezan con esto
+    patron += '<a href=([^"]+)\/><div class=image>'  # scrapedurl
+    patron += '<img src=([^"]+) alt=.*?'  # scrapedthumbnail
+    patron += '<span class=tt>([^"]+)<\/span>' # scrapedtitle
+    patron += '<span class=ttx>([^"]+)<div class=degradado>.*?'  # scrapedplot
+    patron += '<span class=year>([^"]+)<\/span><\/div><\/div>'  # scrapedfixyear
     matches = scrapertools.find_multiple_matches(bloque, patron)
-    for scrapedurl, scrapedthumbnail, scrapedtitle, scrapedfixyear in matches:
-        patron = '<span class="year">([^<]+)'  # scrapedyear
-        scrapedyear = scrapertools.find_single_match(scrapedfixyear, patron)
+    for scrapedurl, scrapedthumbnail, scrapedtitle, scrapedplot, scrapedyear in matches:
+        #patron = '<span class="year">([^<]+)'  # scrapedyear
+        #scrapedyear = scrapertools.find_single_match(scrapedfixyear, patron)
         scrapedtitle = scrapedtitle.replace(scrapertools.find_single_match(scrapedtitle,'\(\d{4}\)'),'').strip()
         title = scrapedtitle
         if scrapedyear:
             title += ' (%s)' % (scrapedyear)
             item.infoLabels['year'] = int(scrapedyear)
         patron = '<span class="calidad2">([^<]+).*?'  # scrapedquality
-        scrapedquality = scrapertools.find_single_match(scrapedfixyear, patron)
-        if scrapedquality:
-            title += ' [%s]' % (scrapedquality)
+        #scrapedquality = scrapertools.find_single_match(scrapedfixyear, patron)
+        #if scrapedquality:
+        #    title += ' [%s]' % (scrapedquality)
         itemlist.append(
             item.clone(title=title, url=scrapedurl, action="findvideos", extra=scrapedtitle,
-                       contentTitle=scrapedtitle, thumbnail=scrapedthumbnail, contentType="movie", context=["buscar_trailer"]))
+                       contentTitle=scrapedtitle, thumbnail=scrapedthumbnail, plot=scrapedplot, contentType="movie", context=["buscar_trailer"]))
     tmdb.set_infoLabels(itemlist)
     # Paginacion
-    patron = 'rel="next" href="([^"]+)'
-    next_page_url = scrapertools.find_single_match(data, patron)
-    if next_page_url != "":
-        item.url = next_page_url
-        itemlist.append(Item(channel=item.channel, action="lista", title="[COLOR cyan]Página Siguiente >>[/COLOR]", url=next_page_url,
-                             thumbnail='https://s32.postimg.cc/4zppxf5j9/siguiente.png'))
+    patron = "<li><a rel=nofollow class=previouspostslink' href=(.+?)>Ultima<\/a>"
+    last_page_url = scrapertools.find_single_match(data, patron)
+    max_pag = last_page_url.split("/")
+    if len(max_pag)<=1:
+        actual_pag = url.split("/")
+        category = actual_pag[3]
+        max_pag = int(item.page)+1
+    else:
+        category = max_pag[3]
+        if not item.max_pag:
+            if not item.cat:
+                max_pag = 1
+            else:
+                max_pag = int(max_pag[5])
+        else:
+            max_pag = item.max_pag
+    logger.info(max_pag)
+    url = host + category + "/page/"
+    page = int(item.page)
+    if page < max_pag:
+        next_page_url = url+str(page+1)
+        if len(itemlist)>10:
+            itemlist.append(Item(channel=item.channel, action="lista", title="[COLOR cyan]Página Siguiente >>[/COLOR]", url=next_page_url,
+                            page=page+1, thumbnail='https://s32.postimg.cc/4zppxf5j9/siguiente.png', max_pag = max_pag))
     return itemlist
 
 

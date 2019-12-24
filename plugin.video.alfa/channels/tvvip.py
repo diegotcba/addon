@@ -8,7 +8,6 @@ import time
 
 from core import channeltools
 from core import httptools
-from core import jsontools
 from core import scrapertools
 from core import servertools
 from core import tmdb
@@ -17,6 +16,8 @@ from platformcode import config, logger
 
 host = "http://tv-vip.com"
 
+httptools.downloadpage(host)
+httptools.downloadpage('%s/video2-prod/s/c' % host, headers={'Referer': host})
 
 def mainlist(item):
     logger.info()
@@ -69,8 +70,7 @@ def search(item, texto):
 def busqueda(item, texto):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     for child in data["objectList"]:
         infolabels = {}
         infolabels['year'] = child['year']
@@ -173,8 +173,7 @@ def submenu(item):
 def cat(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     exception = ["peliculas-mas-vistas", "ultimas-peliculas"]
     for child in data["sortedPlaylistChilds"]:
         if child["id"] not in exception:
@@ -202,8 +201,7 @@ def entradas(item):
         context = "5"
     else:
         context = "05"
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     for child in data["sortedRepoChilds"]:
         infolabels['year'] = child['year']
         url = host + "/json/repo/%s/index.json" % child["id"]
@@ -224,17 +222,16 @@ def entradas(item):
             title += " (" + child['year'] + ")"
         title += quality
         itemlist.append(Item(channel=item.channel, action="findvideos", server="", title=title, url=url,
-                             thumbnail=thumbnail, fulltitle=fulltitle, infoLabels=infolabels,
-                             contentTitle=fulltitle, context=context))
-    tmdb.set_infoLabels(itemlist)
+                             thumbnail=thumbnail, infoLabels=infolabels,
+                             contentTitle=fulltitle, context=context, quality=quality))
+    tmdb.set_infoLabels_itemlist(itemlist, seekTmdb=True)
     return itemlist
 
 
 def entradasconlistas(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     # Si hay alguna lista
     contentSerie = False
     contentList = False
@@ -324,8 +321,7 @@ def entradasconlistas(item):
 def series(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     exception = ["top-series", "nuevos-capitulos"]
     for child in data["sortedPlaylistChilds"]:
         if child["id"] not in exception:
@@ -451,8 +447,7 @@ def episodios(item):
     if item.extra == "series_library":
         itemlist = series_library(item)
         return itemlist
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     # Se prueba un método u otro porque algunas series no están bien listadas
     if data["sortedRepoChilds"]:
         for child in data["sortedRepoChilds"]:
@@ -510,14 +505,12 @@ def series_library(item):
     # Funcion unicamente para añadir/actualizar series a la libreria
     lista_episodios = []
     show = item.show.strip()
-    data_serie = httptools.downloadpage(item.url).data
-    data_serie = jsontools.load(data_serie)
+    data_serie = httptools.downloadpage(item.url).json
     # Para series que en la web se listan divididas por temporadas
     if data_serie["sortedPlaylistChilds"]:
         for season_name in data_serie["sortedPlaylistChilds"]:
             url_season = host + "/json/playlist/%s/index.json" % season_name['id']
-            data = httptools.downloadpage(url_season).data
-            data = jsontools.load(data)
+            data = httptools.downloadpage(url_season).json
             if data["sortedRepoChilds"]:
                 for child in data["sortedRepoChilds"]:
                     url = host + "/json/repo/%s/index.json" % child["id"]
@@ -568,62 +561,41 @@ def series_library(item):
     return lista_episodios
 
 
+
 def findvideos(item):
     logger.info()
     itemlist = []
-    # En caso de llamarse a la función desde una serie de la videoteca
-    if item.extra.startswith("http"): item.url = item.extra
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
-    id = urllib.quote(data['id'])
-    for child in data["profiles"].keys():
-        videopath = urllib.quote(data["profiles"][child]['videoUri'])
-        for i in range(0, len(data["profiles"][child]['servers'])):
-            url = data["profiles"][child]['servers'][i]['url'] + videopath
-            size = "  " + data["profiles"][child]["sizeHuman"]
-            resolution = " [" + (data["profiles"][child]['videoResolution']) + "]"
-            title = "Ver vídeo en " + resolution.replace('1920x1080', 'HD-1080p')
-            if i == 0:
-                title += size + " [COLOR purple]Mirror " + str(i + 1) + "[/COLOR]"
-            else:
-                title += size + " [COLOR green]Mirror " + str(i + 1) + "[/COLOR]"
-            # Para poner enlaces de mayor calidad al comienzo de la lista
-            if data["profiles"][child]["profileId"] == "default":
-                itemlist.insert(i, item.clone(action="play", server="directo", title=title, url=url,
-                                              viewmode="list", extra=id, folder=False))
-            else:
-                itemlist.append(item.clone(action="play", server="directo", title=title, url=url,
-                                           viewmode="list", extra=id, folder=False))
-    itemlist.append(item.clone(channel="trailertools", action="buscartrailer", title="Buscar Tráiler",
-                               text_color="magenta"))
-    if len(itemlist) > 0 and item.extra == "":
-        if config.get_videolibrary_support():
-            itemlist.append(Item(channel=item.channel, title="Añadir enlaces a la videoteca", text_color="green",
-                                      url=item.url, action="add_pelicula_to_library",
-                                      infoLabels={'title':item.fulltitle}, extra="findvideos", fulltitle=item.fulltitle))
+    data = httptools.downloadpage(item.url, headers={'Referer': 'http://tv-vip.com/section/000-novedades/'}).json
+    profiles = data['profiles']
+    for id, values in profiles.items():
+        for option in values['servers']:
+           quality = values['videoResolution']
+           itemlist.append(Item(channel=item.channel, title='Directo' + quality, url=item.url, action='play',
+                                s_id=option, uri=values['videoUri'], server='Directo', quality=quality,
+                                infoLabels=item.infoLabels))
+
     return itemlist
 
 
 def play(item):
+    import time
     logger.info()
     itemlist = []
-    uri = scrapertools.find_single_match(item.url, '(/transcoder[\w\W]+)')
-    s = scrapertools.find_single_match(item.url, r'http.*?://(.*?)\.')
-    uri_request = host + "/video2-prod/s/uri?uri=%s&s=%s&_=%s" % (uri, s, int(time.time()))
-    data = httptools.downloadpage(uri_request).data
-    data = jsontools.load(data)
-    if data['s'] == None:
-        data['s'] = ''
-    # url = item.url.replace(".tv-vip.com/transcoder/", ".%s/e/transcoder/") % (data['b']) + "?tt=" + str(data['a']['tt']) + \
-    #       "&mm=" + data['a']['mm'] + "&bb=" + data['a']['bb']
-    url = item.url.replace(".tv-vip.com/transcoder/", ".pelisipad.com/s/transcoder/") + "?tt=" + str(
-        data['a']['tt']) + \
-          "&mm=" + data['a']['mm'] + "&bb=" + data['a']['bb']
+    s = item.s_id['id']
+    uri = item.uri
+    tt = int(time.time()*1000)
+    headers = {'Referer':item.url.replace('/json/repo', '/film').replace('index.json', ''),
+               'X-Requested-With': 'XMLHttpRequest'}
+    uri_1 = 'http://tv-vip.com/video2-prod/s/uri?uri=/transcoder%s&s=%s' % (uri, s)
+    data = httptools.downloadpage(uri_1, headers=headers, forced_proxy=True).json
+    b = data['b']
+    tt = data['a']['tt']
+    mm = data['a']['mm']
+    bb = data['a']['bb']
 
-    url += "|User-Agent=%s" % httptools.get_user_agent
-
-    itemlist.append(item.clone(action="play", server="directo", url=url, folder=False))
-
+    url = 'http://%s.%s/e/transcoder%s?tt=%s&mm=%s&bb=%s' % (s, b, uri, tt, mm, bb)
+    url += "|User-Agent=%s" % httptools.get_user_agent()
+    itemlist.append(item.clone(url=url))
     return itemlist
 
 
@@ -631,8 +603,7 @@ def listas(item):
     logger.info()
     # Para añadir listas a la videoteca en carpeta CINE
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = jsontools.load(data)
+    data = httptools.downloadpage(item.url).json
     head = header_string + get_cookie_value()
     for child in data["sortedRepoChilds"]:
         infolabels = {}

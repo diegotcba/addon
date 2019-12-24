@@ -1,8 +1,8 @@
 {
   "id": "xdvideos",
   "name": "XDVideos",
-  "active": true,
-  "adult": true,
+  "active": false,
+  "adult": false,
   "language": ["lat"],
   "thumbnail": "http://i.imgur.com/vKcZxXS.png",
   "categories": [

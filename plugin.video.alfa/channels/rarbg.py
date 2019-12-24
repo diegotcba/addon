@@ -24,7 +24,7 @@ list_language = IDIOMAS.values()
 list_quality = []
 list_servers = ['torrent']
 
-host = 'https://rarbgmirror.xyz/'
+host = 'https://rarbgmirror.org/'
 channel = 'rarbg'
 categoria = channel.capitalize()
 __modo_grafico__ = config.get_setting('modo_grafico', channel)
@@ -336,8 +336,8 @@ def listado(item):
                 item_local.season_colapse = True                            #Muestra las series agrupadas por temporadas
 
             #Limpiamos el título de la basura innecesaria
-            title = re.sub(r'TV|Online', '', title, flags=re.IGNORECASE).strip()
-            item_local.quality = re.sub(r'proper|unrated|directors|cut|german|repack|internal|real|korean|extended|masted|docu|oar|super|duper|amzn|uncensored|hulu', '', item_local.quality, flags=re.IGNORECASE).strip()
+            title = re.sub(r'(?i)TV|Online', '', title).strip()
+            item_local.quality = re.sub(r'(?i)proper|unrated|directors|cut|german|repack|internal|real|korean|extended|masted|docu|oar|super|duper|amzn|uncensored|hulu', '', item_local.quality).strip()
 
             #Analizamos el año.  Si no está claro ponemos '-'
             try:
@@ -381,7 +381,7 @@ def listado(item):
             #logger.debug(item_local)
 
     #Pasamos a TMDB la lista completa Itemlist
-    tmdb.set_infoLabels(itemlist, __modo_grafico__)
+    tmdb.set_infoLabels(itemlist, __modo_grafico__, idioma_busqueda='es,en')
     
     #Llamamos al método para el maquillaje de los títulos obtenidos desde TMDB
     item, itemlist = generictools.post_tmdb_listado(item, itemlist)
@@ -407,7 +407,7 @@ def findvideos(item):
         item.language = ['VO']                                                      #VO por defecto
     matches = []
     item.category = categoria
-    
+
     #logger.debug(item)
 
     #Bajamos los datos de la página
@@ -422,7 +422,7 @@ def findvideos(item):
         
     if not data:
         logger.error("ERROR 01: FINDVIDEOS: La Web no responde o la URL es erronea: " + item.url)
-        itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 01: FINDVIDEOS:.  La Web no responde o la URL es erronea. Si la Web está activa, reportar el error con el log'))
+        itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 01: FINDVIDEOS:.  La Web no responde o la URL es erronea. Si la Web está activa, reportar el error con el log', folder=False))
         return itemlist                             #si no hay más datos, algo no funciona, pintamos lo que tenemos
 
     status, itemlist = check_blocked_IP(data, itemlist)                         #Comprobamos si la IP ha sido bloqueada
@@ -436,7 +436,7 @@ def findvideos(item):
             item, itemlist = generictools.post_tmdb_findvideos(item, itemlist)  #Llamamos al método para el pintado del error
         else:
             logger.error("ERROR 02: FINDVIDEOS: No hay enlaces o ha cambiado la estructura de la Web " + " / PATRON: " + patron + data)
-            itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 02: FINDVIDEOS: No hay enlaces o ha cambiado la estructura de la Web.  Verificar en la Web esto último y reportar el error con el log'))
+            itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 02: FINDVIDEOS: No hay enlaces o ha cambiado la estructura de la Web.  Verificar en la Web esto último y reportar el error con el log', folder=False))
             return itemlist                         #si no hay más datos, algo no funciona, pintamos lo que tenemos
 
     #logger.debug("PATRON: " + patron)
@@ -472,22 +472,28 @@ def findvideos(item):
             item_local.quality = ''
         title = title.replace('.', ' ')
         item_local.quality = item_local.quality.replace('.', ' ')
-        item_local.quality = re.sub(r'proper|unrated|directors|cut|german|repack|internal|real|korean|extended|masted|docu|oar|super|duper|amzn|uncensored|hulu', '', item_local.quality, flags=re.IGNORECASE).strip()
+        item_local.quality = re.sub(r'(?i)proper|unrated|directors|cut|german|repack|internal|real|korean|extended|masted|docu|oar|super|duper|amzn|uncensored|hulu', '', item_local.quality).strip()
         
         #Buscamos si ya tiene tamaño, si no, los buscamos en el archivo .torrent
         size = scrapedsize
         if size:
-            item_local.title = '%s [%s]' % (item_local.title, size)                 #Agregamos size al final del título
-            size = size.replace('GB', 'G B').replace('Gb', 'G b').replace('MB', 'M B').replace('Mb', 'M b')
-            item_local.quality = '%s [%s]' % (item_local.quality, size)             #Agregamos size al final de la calidad
-        
+            item_local.title = '%s [%s]' % (item_local.title, size)             #Agregamos size al final del título
+            size = size.replace('GB', 'G·B').replace('Gb', 'G·b').replace('MB', 'M·B')\
+                        .replace('Mb', 'M·b').replace('.', ',')
+            item_local.torrent_info = '%s, ' % size                             #Agregamos size
+
         #Añadimos los seeds en calidad, como información adicional
         if scrapedseeds:
-            item_local.quality = '%s [Seeds: %s]' % (item_local.quality, scrapedseeds)  #Agregamos seeds a la calidad
+            item_local.torrent_info += 'Seeds: %s' % scrapedseeds               #Agregamos seeds
+        if not item.unify:
+                item_local.torrent_info = '[%s]' % item_local.torrent_info.strip().strip(',')
 
         #Ahora pintamos el link del Torrent
         item_local.url = urlparse.urljoin(host, scrapedurl)
-        item_local.title = '[COLOR yellow][?][/COLOR] [COLOR yellow][Torrent][/COLOR] [COLOR limegreen][%s][/COLOR] [COLOR red]%s[/COLOR]' % (item_local.quality, str(item_local.language))
+        item_local.title = '[[COLOR yellow]?[/COLOR]] [COLOR yellow][Torrent][/COLOR] ' \
+                        + '[COLOR limegreen][%s][/COLOR] [COLOR red]%s[/COLOR] %s' % \
+                        (item_local.quality, str(item_local.language),  \
+                        item_local.torrent_info)                                #Preparamos título de Torrent
         
         #Preparamos título y calidad, quitamos etiquetas vacías
         item_local.title = re.sub(r'\s?\[COLOR \w+\]\[\[?\s?\]?\]\[\/COLOR\]', '', item_local.title)    
@@ -515,7 +521,7 @@ def findvideos(item):
     else:                                                                       
         if config.get_setting('filter_languages', channel) > 0 and len(itemlist_t) > 0: #Si no hay entradas filtradas ...
             thumb_separador = get_thumb("next.png")                             #... pintamos todo con aviso
-            itemlist.append(Item(channel=item.channel, url=host, title="[COLOR red][B]NO hay elementos con el idioma seleccionado[/B][/COLOR]", thumbnail=thumb_separador))
+            itemlist.append(Item(channel=item.channel, url=host, title="[COLOR red][B]NO hay elementos con el idioma seleccionado[/B][/COLOR]", thumbnail=thumb_separador, folder=False))
         itemlist.extend(itemlist_t)                                             #Pintar pantalla con todo si no hay filtrado
     
     # Requerido para AutoPlay
@@ -528,12 +534,12 @@ def play(item):                                 #Permite preparar la descarga de
     logger.info()
     itemlist = []
     headers = []
-    import os
     from core import downloadtools
     from core import ziptools
+    from core import filetools
     
     #buscamos la url del .torrent
-    patron = '<tr><td align="(?:[^"]+)?"\s*class="(?:[^"]+)?"\s*width="(?:[^"]+)?">\s*Torrent:<\/td><td class="(?:[^"]+)?">\s*<img src="(?:[^"]+)?"\s*alt="(?:[^"]+)?"\s*border="(?:[^"]+)?"\s*\/>\s*<a onmouseover="(?:[^"]+)?"\s*onmouseout="(?:[^"]+)?" href="([^"]+)">.*?<\/a>'
+    patron = '<tr><td align="(?:[^"]+)?"\s*class="(?:[^"]+)?"\s*width="(?:[^"]+)?">\s*Torrent:<\/td><td class="(?:[^"]+)?">\s*<img src="(?:[^"]+)?"\s*alt="(?:[^"]+)?"\s*border="(?:[^"]+)?"\s*\/>\s*<a onmouseover="(?:[^"]+)?"\s*onmouseout="(?:[^"]+)?" href="([^"]+)".*?<\/a>'
     try:
         data = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)", "", httptools.downloadpage(item.url, timeout=timeout).data)
         data = unicode(data, "utf-8", errors="replace").encode("utf-8")
@@ -543,6 +549,7 @@ def play(item):                                 #Permite preparar la descarga de
     if status:
         return itemlist                                                 #IP bloqueada
     if not scrapertools.find_single_match(data, patron):
+        logger.error('ERROR 02: PLAY: No hay enlaces o ha cambiado la estructura de la Web.  Verificar en la Web esto último y reportar el error con el log: PATRON: ' + patron + ' / DATA: ' + data)
         itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 02: PLAY: No hay enlaces o ha cambiado la estructura de la Web.  Verificar en la Web esto último y reportar el error con el log'))
         return itemlist
     item.url = urlparse.urljoin(host, scrapertools.find_single_match(data, patron))
@@ -563,19 +570,18 @@ def play(item):                                 #Permite preparar la descarga de
         videolibrary_path = config.get_videolibrary_path()              #Calculamos el path absoluto a partir de la Videoteca
         if videolibrary_path.lower().startswith("smb://"):              #Si es una conexión SMB, usamos userdata local
             videolibrary_path = config.get_data_path()                  #Calculamos el path absoluto a partir de Userdata
-        videolibrary_path = os.path.join(videolibrary_path, "subtitles")
+        videolibrary_path = filetools.join(videolibrary_path, "subtitles")
         #Primero se borra la carpeta de subtitulos para limpiar y luego se crea
-        if os.path.exists(videolibrary_path):   
-            import shutil
-            shutil.rmtree(videolibrary_path, ignore_errors=True)
+        if filetools.exists(videolibrary_path):   
+            filetools.rmtree(videolibrary_path)
             time.sleep(1)
-        if not os.path.exists(videolibrary_path):   
-            os.mkdir(videolibrary_path)
+        if not filetools.exists(videolibrary_path):   
+            filetools.mkdir(videolibrary_path)
         subtitle_name = 'Rarbg-ES_SUBT.zip'                                     #Nombre del archivo de sub-títulos
-        subtitle_folder_path = os.path.join(videolibrary_path, subtitle_name)   #Path de descarga
+        subtitle_folder_path = filetools.join(videolibrary_path, subtitle_name)   #Path de descarga
         ret = downloadtools.downloadfile(item.subtitle, subtitle_folder_path, headers=headers, continuar=True, silent=True)
 
-        if os.path.exists(subtitle_folder_path):
+        if filetools.exists(subtitle_folder_path):
             # Descomprimir zip dentro del addon
             # ---------------------------------
             try:
@@ -588,10 +594,10 @@ def play(item):                                 #Permite preparar la descarga de
             
             # Borrar el zip descargado
             # ------------------------
-            os.remove(subtitle_folder_path)
+            filetools.remove(subtitle_folder_path)
             
             #Tomo el primer archivo de subtítulos como valor por defecto
-            for raiz, subcarpetas, ficheros in os.walk(videolibrary_path):
+            for raiz, subcarpetas, ficheros in filetools.walk(videolibrary_path):
                 for f in ficheros:
                     if f.endswith(".srt"):
                         #f_es = 'rarbg_subtitle.spa.srt'
@@ -599,8 +605,8 @@ def play(item):                                 #Permite preparar la descarga de
                         if not f_es:
                             f_es = item.infoLabels['originaltitle'] + '.spa.srt'
                             f_es = f_es.replace(':', '').lower()
-                        os.rename(os.path.join(videolibrary_path, f), os.path.join(videolibrary_path, f_es))
-                        item.subtitle = os.path.join(videolibrary_path, f_es)   #Archivo de subtitulos
+                        filetools.rename(filetools.join(videolibrary_path, f), filetools.join(videolibrary_path, f_es))
+                        item.subtitle = filetools.join(videolibrary_path, f_es)   #Archivo de subtitulos
                         break
                 break
         
@@ -639,8 +645,10 @@ def episodios(item):
         season_display = item.from_num_season_colapse
 
     # Obtener la información actualizada de la Serie.  TMDB es imprescindible para Videoteca
-    if not item.infoLabels['tmdb_id']:
-        tmdb.set_infoLabels(item, True)
+    try:
+        tmdb.set_infoLabels(item, True, idioma_busqueda='es,en')
+    except:
+        pass
         
     modo_ultima_temp_alt = modo_ultima_temp
     if item.ow_force == "1":                                    #Si hay un traspaso de canal o url, se actualiza todo 
@@ -777,7 +785,7 @@ def episodios(item):
 
     if not item.season_colapse:                                                 #Si no es pantalla de Temporadas, pintamos todo
         # Pasada por TMDB y clasificación de lista por temporada y episodio
-        tmdb.set_infoLabels(itemlist, True)
+        tmdb.set_infoLabels(itemlist, True, idioma_busqueda='es,en')
 
         #Llamamos al método para el maquillaje de los títulos obtenidos desde TMDB
         item, itemlist = generictools.post_tmdb_episodios(item, itemlist)

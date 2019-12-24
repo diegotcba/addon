@@ -9,12 +9,11 @@ from core import scrapertools
 from lib import jsunpack
 from platformcode import logger
 
-headers = [['User-Agent', 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:53.0) Gecko/20100101 Firefox/53.0']]
-
 
 def test_video_exists(page_url):
     logger.info("(page_url='%s')" % page_url)
-    referer = re.sub(r"embed-|player-", "", page_url)[:-5]
+    referer = re.sub(r"player-", "embed-", page_url)
+    global data
     data = httptools.downloadpage(page_url, headers={'Referer': referer}).data
     if data == "File was deleted":
         return False, "[Streamplay] El archivo no existe o ha sido borrado"
@@ -25,23 +24,20 @@ def test_video_exists(page_url):
 
 def get_video_url(page_url, premium=False, user="", password="", video_password=""):
     logger.info()
-    itemlist = []
-
-    referer = re.sub(r"embed-|player-", "", page_url)[:-5]
-
-    data = httptools.downloadpage(page_url, headers={'Referer': referer}).data
-
-    if data == "File was deleted":
-        return "El archivo no existe o ha sido borrado"
+    video_urls = []
 
     packed = scrapertools.find_single_match(data, "<script type=[\"']text/javascript[\"']>(eval.*?)</script>")
     unpacked = jsunpack.unpack(packed)
 
-    url = scrapertools.find_single_match(unpacked, '(http[^,]+\.mp4)')
+    sources = eval(scrapertools.find_single_match(unpacked, "sources=(\[[^\]]+\])"))
+    for video_url in sources:
+        
+        from lib import alfaresolver
+        video_url = alfaresolver.decode_video_url(video_url, data)
+        filename = scrapertools.get_filename_from_url(video_url)[-4:]
+        if not video_url.endswith(".mpd"):
+            video_urls.append([filename + " [streamplay]", video_url])
 
-    from lib import alfaresolver
-    itemlist.append([".mp4" + " [streamplay]", alfaresolver.decode_video_url(url, data)])
+    video_urls.sort(key=lambda x: x[0], reverse=True)
 
-    itemlist.sort(key=lambda x: x[0], reverse=True)
-
-    return itemlist
+    return video_urls

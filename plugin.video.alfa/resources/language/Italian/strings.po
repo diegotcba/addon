@@ -498,12 +498,12 @@ msgid "Search for actor/actress"
 msgstr "Cerca attore/attrice"
 
 msgctxt "#60000"
-msgid "Filtra server (Black List)"
+msgid "Filter server (Black List)"
 msgstr "Filtra server (Black List)"
 
 msgctxt "#60001"
-msgid "Filtra server (Black List)\nNessun collegamento disponibile che soddisfi i requisiti della Black list.\nRiprova modificando il filtro in 'Configurazione Server"
-msgstr "Filtra server (Black List)\nNessun collegamento disponibile che soddisfi i requisiti della Black list.\nRiprova modificando il filtro in 'Configurazione Server"
+msgid "No links available that meets the requirements of the Black list. Try again by changing the filter in 'Server Configuration"
+msgstr "Nessun collegamento disponibile che soddisfi i requisiti della Black list. Riprova modificando il filtro in 'Configurazione Server"
 
 msgctxt "#60003"
 msgid "Connessione con %s"
@@ -1034,8 +1034,8 @@ msgid "Movie"
 msgstr "Film"
 
 msgctxt "#60245"
-msgid "Series"
-msgstr "Serie"
+msgid "tv show"
+msgstr "serie"
 
 msgctxt "#60246"
 msgid "Full information"
@@ -4247,10 +4247,6 @@ msgctxt "#70392"
 msgid "Rate with a [COLOR %s]%s[/ COLOR]"
 msgstr "Dai un punteggio con un [COLOR %s]%s[/COLOR]"
 
-msgctxt "#70393"
-msgid "[%s]: Select the correct %s "
-msgstr "[%s]: Seleziona il %s corretto"
-
 msgctxt "#70394"
 msgid "Action"
 msgstr "Azione"
@@ -4715,10 +4711,6 @@ msgctxt "#70508"
 msgid "Search in Abandomoviez"
 msgstr "Ricerca inAbandomoviez"
 
-msgctxt "#70509"
-msgid "Search in Jayhap (Youtube, Vimeo & Dailymotion)"
-msgstr "Ricerca in Jayhap (Youtube, Vimeo & Dailymotion)"
-
 msgctxt "#70510"
 msgid "Manual Search in Youtube"
 msgstr "Ricerca Manuale in Youtube"
@@ -4798,10 +4790,6 @@ msgstr "I Miei Link"
 msgctxt "#70528"
 msgid "Default folder"
 msgstr "Cartella di Default"
-
-msgctxt "#70529"
-msgid "Repeated link"
-msgstr "Link ripetuto"
 
 msgctxt "#70530"
 msgid "You already have this link in the folder"
@@ -4932,3 +4920,6 @@ msgid "Search Similar
 msgstr "Cerca Simili"
 
 
+msgctxt "#70562"
+msgid "Autoplay (Enable autoplay in all channels)"
+msgstr "Autoplay (Abilita autoplay in tutti i canali)"

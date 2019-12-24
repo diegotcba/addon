@@ -51,7 +51,7 @@ def categorias(item):
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
                               thumbnail=scrapedthumbnail , plot=scrapedplot) )
 
-    return itemlist
+    return sorted(itemlist, key=lambda i: i.title)
 
 
 def lista(item):
@@ -67,7 +67,7 @@ def lista(item):
         scrapedtitle = "[COLOR yellow]" + (scrapedtime) + "[/COLOR] " + scrapedtitle
         scrapedurl = "http://xxx.justporno.tv/embed/" + scrapedurl
         itemlist.append( Item(channel=item.channel, action="play", title=scrapedtitle, url=scrapedurl,
-                              thumbnail=scrapedthumbnail , plot=scrapedplot) )
+                              fanart=scrapedthumbnail, thumbnail=scrapedthumbnail, plot=scrapedplot) )
                               
     if item.extra:
         next_page = scrapertools.find_single_match(data, '<li class="next">.*?from_videos\+from_albums:(.*?)>')
@@ -92,10 +92,6 @@ def lista(item):
                     next_page = "%s?mode=async&function=get_block&block_id=list_videos_common_videos_list" \
                                 "&sort_by=post_date&from=%s" % (item.url, next_page)
                 itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page))
-
-    # if next_page!="":
-        # next_page = urlparse.urljoin(item.url,next_page)
-        # itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page) )
     return itemlist
 
 
@@ -108,6 +104,6 @@ def play(item):
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl in matches:
         scrapedplot = ""
-        itemlist.append(item.clone(channel=item.channel, action="play", title=scrapedurl , url=scrapedurl , plot="" , folder=True) )
+        itemlist.append(item.clone(channel=item.channel, action="play", title=item.title , url=scrapedurl , plot="" , folder=True) )
     return itemlist
 

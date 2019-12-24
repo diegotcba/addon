@@ -25,7 +25,7 @@ list_servers = ['rapidvideo', 'streamango', 'fastplay', 'openload', 'netu', 'vid
 
 __channel__='repelis'
 
-host = "https://repelisgo.io"
+host = "https://repelisgo.net"
 
 try:
     __modo_grafico__ = config.get_setting('modo_grafico', __channel__)
@@ -146,14 +146,23 @@ def newest(categoria):
 
 def search(item, texto):
     logger.info()
+    logger.info()
+
+    texto = texto.replace(" ", "+")
     item.url = item.url + texto
+
     item.extra = "busca"
     item.page = 1
     item.texto = texto
     item.post = {"query":"\n          query ($term: String) {\n            movies: allMovies(search: $term) {\n              id\n              slug\n              title\n              rating\n              releaseDate\n              released\n              poster\n              nowPlaying\n            }\n          }\n        ","variables":{"term":"%s" %texto}}
-    if texto != '':
+    try:
         return peliculas(item)
-    else:
+
+    # Se captura la excepción, para no interrumpir al buscador global si un canal falla
+    except:
+        import sys
+        for line in sys.exc_info():
+            logger.error("{0}".format(line))
         return []
 
 
@@ -207,23 +216,23 @@ def findvideos(item):
 
     autoplay.start(itemlist, item)
 
-    if itemlist:
+    if itemlist and item.contentChannel != "videolibrary":
         itemlist.append(Item(channel = item.channel))
         itemlist.append(item.clone(channel="trailertools", title="Buscar Tráiler", action="buscartrailer", context="",
                                    text_color="magenta"))
         # Opción "Añadir esta película a la biblioteca de KODI"
-        if item.extra != "library":
-            if config.get_videolibrary_support():
-                itemlist.append(Item(channel=item.channel, title="Añadir a la videoteca", text_color="green",
-                                     action="add_pelicula_to_library", url=item.url, thumbnail = item.thumbnail,
-                                     contentTitle = item.contentTitle
-                                     ))
+        if config.get_videolibrary_support():
+            itemlist.append(Item(channel=item.channel, title="Añadir a la videoteca", text_color="green",
+                                 action="add_pelicula_to_library", url=item.url, thumbnail = item.thumbnail,
+                                 contentTitle = item.contentTitle
+                                 ))
     return itemlist
 
 
 def play(item):
     logger.info()
     itemlist = []
+    #headers = {"}
     url1 = httptools.downloadpage(host + item.url, follow_redirects=False, only_headers=True).headers.get("location", "")
     itemlist.append(item.clone(url=url1))
     itemlist = servertools.get_servers_itemlist(itemlist)

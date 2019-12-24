@@ -24,7 +24,7 @@ list_language = IDIOMAS.values()
 list_quality = []
 list_servers = ['torrent']
 
-host = 'http://www.elitetorrent.biz'
+host = 'https://www.elitetorrent.tv'
 channel = "elitetorrent"
 
 categoria = channel.capitalize()
@@ -43,18 +43,24 @@ def mainlist(item):
     thumb_buscar = get_thumb("search.png")
     thumb_separador = get_thumb("next.png")
     thumb_settings = get_thumb("setting_0.png")
+    home = '/'
     
     autoplay.init(item.channel, list_servers, list_quality)
 
-    itemlist.append(Item(channel=item.channel, action="submenu", title="Películas", url=host, extra="peliculas", thumbnail=thumb_pelis))
+    itemlist.append(Item(channel=item.channel, action="submenu", title="Películas", 
+                    url=host + home, extra="peliculas", thumbnail=thumb_pelis))
     
-    itemlist.append(Item(channel=item.channel, action="submenu", title="Series", url=host, extra="series", thumbnail=thumb_series))
+    itemlist.append(Item(channel=item.channel, action="submenu", title="Series", 
+                    url=host + home, extra="series", thumbnail=thumb_series))
     
-    itemlist.append(Item(channel=item.channel, action="search", title="Buscar", url=host, thumbnail=thumb_buscar, filter_lang=True))
+    itemlist.append(Item(channel=item.channel, action="search", title="Buscar", 
+                    url=host + home, thumbnail=thumb_buscar, filter_lang=True))
 
-    itemlist.append(Item(channel=item.channel, url=host, title="[COLOR yellow]Configuración:[/COLOR]", folder=False, thumbnail=thumb_separador))
+    itemlist.append(Item(channel=item.channel, url=host, title="[COLOR yellow]Configuración:[/COLOR]", 
+                    folder=False, thumbnail=thumb_separador))
     
-    itemlist.append(Item(channel=item.channel, action="configuracion", title="Configurar canal", thumbnail=thumb_settings))
+    itemlist.append(Item(channel=item.channel, action="configuracion", title="Configurar canal", 
+                    thumbnail=thumb_settings))
     
     autoplay.show_option(item.channel, itemlist)            #Activamos Autoplay
 
@@ -84,10 +90,10 @@ def submenu(item):
         itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 01: La Web no responde o ha cambiado de URL. Si la Web está activa, reportar el error con el log'))
         return itemlist                                                         #Algo no funciona, pintamos lo que tenemos
     
-    patron = '<div class="cab_menu">.*?<\/div>'                                 #Menú principal
-    data1 = scrapertools.get_match(data, patron)
-    patron = '<div id="menu_langen">.*?<\/div>'                                 #Menú de idiomas
-    data1 += scrapertools.get_match(data, patron)
+    patron = '<div class="cab_menu"\s*>.*?<\/div>'                              #Menú principal
+    data1 = scrapertools.find_single_match(data, patron)
+    patron = '<div id="menu_langen"\s*>.*?<\/div>'                              #Menú de idiomas
+    data1 += scrapertools.find_single_match(data, patron)
     
     patron = '<a href="(.*?)".*?title="(.*?)"'                                  #Encontrar todos los apartados
     matches = re.compile(patron, re.DOTALL).findall(data1)
@@ -155,16 +161,16 @@ def listado(item):
     patron = '<div id="principal">.*?<\/nav><\/div><\/div>'
     data = scrapertools.find_single_match(data, patron)
     
-    patron = '<li>.*?<a href="(.*?)".*?'                    #url
-    patron += 'title="(.*?)".*?'                            #título
-    patron += 'src="(.*?)".*?'                              #thumb
-    patron += "title='(.*?)'.*?"                            #categoría, idioma
-    patron += '"><i>(.*?)<\/i><\/span.*?'                   #calidad
-    patron += '="dig1">(.*?)<.*?'                           #tamaño
-    patron += '="dig2">(.*?)<\/span><\/div>'                #tipo tamaño
+    patron = '<li>\s*<div\s*class="[^"]+">\s*<a href="([^"]+)"\s*'              #url
+    patron += 'title="([^"]+)"\s*(?:alt="[^"]+")?\s*>\s*'                       #título
+    patron += '<img (?:class="[^"]+")?\s*src="([^"]+)".*?border="[^"]+"\s*'     #thumb
+    patron += 'title="([^"]+)".*?'                                              #categoría, idioma
+    patron += '<span class="[^"]+" style="[^"]+"\s*><i>(.*?)?<\/i>'             #calidad
+    patron += '(?:<\/span.*?="dig1">(.*?)?)?'                                   #tamaño
+    patron += '(?:<.*?="dig2">(.*?)?)?<\/span><\/div>'                          #tipo tamaño
 
     matches = re.compile(patron, re.DOTALL).findall(data)
-    if not matches and not '<title>503 Backend fetch failed</title>' in data:   #error
+    if not matches and not '<title>503 Backend fetch failed</title>' in data and not 'No se han encontrado resultados' in data:                                                                            #error
         item = generictools.web_intervenida(item, data)                         #Verificamos que no haya sido clausurada
         if item.intervencion:                                                   #Sí ha sido clausurada judicialmente
             item, itemlist = generictools.post_tmdb_listado(item, itemlist)     #Llamamos al método para el pintado del error
@@ -197,7 +203,7 @@ def listado(item):
         if not item_local.quality and ("DVDRip" in title or "HDRip" in title or "BR-LINE" in title or "HDTS-SCREENER" in title or "BDRip" in title or "BR-Screener" in title or "DVDScreener" in title or "TS-Screener" in title):
             item_local.quality = scrapertools.find_single_match(title, r'\((.*?)\)')
             item_local.quality = item_local.quality.replace("Latino", "")
-        if not scrapedsizet:
+        if not scrapedsizet or "---" in scrapedsizet:
             scrapedsize = ''
         else:
             item_local.quality += ' [%s %s]' % (scrapedsize.replace(".", ","), scrapedsizet)
@@ -323,7 +329,7 @@ def findvideos(item):
         
     if not data:
         logger.error("ERROR 01: FINDVIDEOS: La Web no responde o la URL es erronea: " + item.url + " / DATA: " + data)
-        itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 01: FINDVIDEOS:.  La Web no responde o la URL es erronea. Si la Web está activa, reportar el error con el log'))
+        itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 01: FINDVIDEOS:.  La Web no responde o la URL es erronea. Si la Web está activa, reportar el error con el log', folder=False))
         if item.emergency_urls and not item.videolibray_emergency_urls:         #Hay urls de emergencia?
             link_torrent = item.emergency_urls[0][0]                            #Guardamos la url del .Torrent
             link_magnet = item.emergency_urls[1][0]                             #Guardamos la url del .Magnet
@@ -332,7 +338,7 @@ def findvideos(item):
             if item.videolibray_emergency_urls:                                 #Si es llamado desde creación de Videoteca...
                 return item                                                     #Devolvemos el Item de la llamada
             else:
-                return itemlist                                         #si no hay más datos, algo no funciona, pintamos lo que tenemos
+                return itemlist                         #si no hay más datos, algo no funciona, pintamos lo que tenemos
     #data = unicode(data, "utf-8", errors="replace")
 
     patron_t = '<div class="enlace_descarga".*?<a href="(.*?\.torrent)"'
@@ -355,11 +361,10 @@ def findvideos(item):
         return item                                                             #... y nos vamos
     
     #Añadimos el tamaño para todos
-    size = scrapertools.find_single_match(item.quality, '\s\[(\d+,?\d*?\s\w\s?[b|B]s)\]')
+    size = scrapertools.find_single_match(item.quality, '\s\[(\d+,?\d*?\s\w\s*[b|B]s*)\]')
     if size:
-        item.title = re.sub('\s\[\d+,?\d*?\s\w[b|B]s\]', '', item.title)        #Quitamos size de título, si lo traía
-        item.title = '%s [%s]' % (item.title, size)                             #Agregamos size al final del título
-        item.quality = re.sub('\s\[\d+,?\d*?\s\w\s?[b|B]s\]', '', item.quality) #Quitamos size de calidad, si lo traía
+        item.title = re.sub('\s\[\d+,?\d*?\s\w\s*[b|B]s*\]', '', item.title)    #Quitamos size de título, si lo traía
+        item.quality = re.sub('\s\[\d+,?\d*?\s\w\s*[b|B]s*\]', '', item.quality)    #Quitamos size de calidad, si lo traía
     
     if not link_torrent and not link_magnet:                                    #error
         item = generictools.web_intervenida(item, data)                         #Verificamos que no haya sido clausurada
@@ -367,7 +372,7 @@ def findvideos(item):
             item, itemlist = generictools.post_tmdb_findvideos(item, itemlist)  #Llamamos al método para el pintado del error
         else:
             logger.error("ERROR 02: FINDVIDEOS: El archivo Torrent no existe o ha cambiado la estructura de la Web " + " / PATRON: " + patron_t + " / " + patron_m + " / DATA: " + data)
-            itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 02: FINDVIDEOS: El archivo Torrent no existe o ha cambiado la estructura de la Web.  Verificar en la Web y reportar el error con el log'))
+            itemlist.append(item.clone(action='', title=item.channel.capitalize() + ': ERROR 02: FINDVIDEOS: El archivo Torrent no existe o ha cambiado la estructura de la Web.  Verificar en la Web y reportar el error con el log', folder=False))
         if item.emergency_urls and not item.videolibray_emergency_urls:         #Hay urls de emergencia?
             link_torrent = item.emergency_urls[0][0]                            #Guardamos la url del .Torrent
             link_magnet = item.emergency_urls[1][0]                             #Guardamos la url del .Magnet
@@ -376,7 +381,7 @@ def findvideos(item):
             if item.videolibray_emergency_urls:                                 #Si es llamado desde creación de Videoteca...
                 return item                                                     #Devolvemos el Item de la llamada
             else:
-                return itemlist                                         #si no hay más datos, algo no funciona, pintamos lo que tenemos
+                return itemlist                         #si no hay más datos, algo no funciona, pintamos lo que tenemos
 
     #Llamamos al método para crear el título general del vídeo, con toda la información obtenida de TMDB
     item, itemlist = generictools.post_tmdb_findvideos(item, itemlist)
@@ -384,24 +389,28 @@ def findvideos(item):
     if not size and not item.armagedon:
         size = generictools.get_torrent_size(link_torrent)                      #Buscamos el tamaño en el .torrent
     if size:
-        item.quality = '%s [%s]' % (item.quality, size)                         #Agregamos size al final de calidad
-        item.quality = item.quality.replace("GB", "G B").replace("MB", "M B")   #Se evita la palabra reservada en Unify
+        size = size.replace('GB', 'G·B').replace('Gb', 'G·b').replace('MB', 'M·B')\
+                        .replace('Mb', 'M·b').replace('.', ',')
 
     #Ahora pintamos el link del Torrent, si lo hay
     if link_torrent:		                                                    # Hay Torrent ?
         #Generamos una copia de Item para trabajar sobre ella
         item_local = item.clone()
-    
-        if item_local.quality:
-            item_local.quality += " "
-        item_local.quality += "[Torrent]"
+
+        item_local.torrent_info = "[Torrent] "
+        item_local.torrent_info += '%s' % size                                   #Agregamos size
+        if not item.unify:
+            item_local.torrent_info = '[%s]' % item_local.torrent_info.strip().strip(',')
         if item.armagedon:                                                      #Si es catastrófico, lo marcamos
             item_local.quality = '[/COLOR][COLOR hotpink][E] [COLOR limegreen]%s' % item_local.quality
         item_local.url = link_torrent
         if item_local.url and item.emergency_urls and not item.armagedon:
             item_local.torrent_alt = item.emergency_urls[0][0]                  #Guardamos la url del .Torrent ALTERNATIVA
         
-        item_local.title = '[COLOR yellow][?][/COLOR] [COLOR yellow][Torrent][/COLOR] [COLOR limegreen][%s][/COLOR] [COLOR red]%s[/COLOR]' % (item_local.quality, str(item_local.language))        #Preparamos título de Torrent
+        item_local.title = '[[COLOR yellow]?[/COLOR]] [COLOR yellow][Torrent][/COLOR] ' \
+                        + '[COLOR limegreen][%s][/COLOR] [COLOR red]%s[/COLOR] %s' % \
+                        (item_local.quality, str(item_local.language),  \
+                        item_local.torrent_info)                                #Preparamos título de Torrent
         
         #Preparamos título y calidad, quitamos etiquetas vacías
         item_local.title = re.sub(r'\s?\[COLOR \w+\]\[\[?\s?\]?\]\[\/COLOR\]', '', item_local.title)    
@@ -426,7 +435,7 @@ def findvideos(item):
         else:                                                                       
             if config.get_setting('filter_languages', channel) > 0 and len(itemlist_t) > 0: #Si no hay entradas filtradas ...
                 thumb_separador = get_thumb("next.png")                             #... pintamos todo con aviso
-                itemlist.append(Item(channel=item.channel, url=host, title="[COLOR red][B]NO hay elementos con el idioma seleccionado[/B][/COLOR]", thumbnail=thumb_separador))
+                itemlist.append(Item(channel=item.channel, url=host, title="[COLOR red][B]NO hay elementos con el idioma seleccionado[/B][/COLOR]", thumbnail=thumb_separador, folder=False))
             itemlist.extend(itemlist_t)                                         #Pintar pantalla con todo si no hay filtrado
     
     #Ahora pintamos el link del Magnet, si lo hay
@@ -436,13 +445,19 @@ def findvideos(item):
         #Generamos una copia de Item para trabajar sobre ella
         item_local = item.clone()
         
-        if item_local.quality:
-            item_local.quality += " "
-        item_local.quality = item_local.quality.replace("[Torrent]", "") + "[Magnet]"
+        item_local.torrent_info = "[Magnet] "
+        item_local.torrent_info += '%s' % size                                  #Agregamos size
+        if not item.unify:
+            item_local.torrent_info = '[%s]' % item_local.torrent_info.strip().strip(',')
         if item.armagedon:                                                      #Si es catastrófico, lo marcamos
             item_local.quality = '[/COLOR][COLOR hotpink][E] [COLOR limegreen]%s' % item_local.quality
         item_local.url = link_magnet
-        item_local.title = '[COLOR yellow][?][/COLOR] [COLOR yellow][Torrent][/COLOR] [COLOR limegreen][%s][/COLOR] [COLOR red]%s[/COLOR]' % (item_local.quality, str(item_local.language))        #Preparamos título de Magnet
+        
+        item_local.title = '[[COLOR yellow]?[/COLOR]] [COLOR yellow][Torrent][/COLOR] ' \
+                        + '[COLOR limegreen][%s][/COLOR] [COLOR red]%s[/COLOR] %s' % \
+                        (item_local.quality, str(item_local.language),  \
+                        item_local.torrent_info)                                #Preparamos título de Magnet
+                        
         item_local.title = re.sub(r'\s\[COLOR \w+\]\[\[?\]?\]\[\/COLOR\]', '', item_local.title)    #Quitamos etiquetas vacías
         item_local.title = re.sub(r'\s\[COLOR \w+\]\[\/COLOR\]', '', item_local.title)          #Quitamos colores vacíos
         item_local.alive = "??"                                                 #Calidad del link sin verificar
@@ -460,7 +475,7 @@ def findvideos(item):
         else:                                                                       
             if config.get_setting('filter_languages', channel) > 0 and len(itemlist_t) > 0: #Si no hay entradas filtradas ...
                 thumb_separador = get_thumb("next.png")                             #... pintamos todo con aviso
-                itemlist.append(Item(channel=item.channel, url=host, title="[COLOR red][B]NO hay elementos con el idioma seleccionado[/B][/COLOR]", thumbnail=thumb_separador))
+                itemlist.append(Item(channel=item.channel, url=host, title="[COLOR red][B]NO hay elementos con el idioma seleccionado[/B][/COLOR]", thumbnail=thumb_separador, folder=False))
             itemlist.extend(itemlist_t)                                         #Pintar pantalla con todo si no hay filtrado
     
     #logger.debug("TORRENT: " + link_torrent + "MAGNET: " + link_magnet + " / title gen/torr: " + item.title + " / " + item_local.title + " / calidad: " + item_local.quality + " / tamaño: " + size + " / content: " + item_local.contentTitle + " / " + item_local.contentSerieName)
@@ -505,7 +520,7 @@ def newest(categoria):
     item = Item()
     try:
         if categoria == 'peliculas':
-            item.url = host
+            item.url = host + '/estrenos-/'
             item.extra = "peliculas"
             item.category_new= 'newest'
 

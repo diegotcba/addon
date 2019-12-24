@@ -9,6 +9,7 @@ from platformcode import config, logger
 from platformcode import platformtools
 from platformcode import launcher
 from time import sleep
+from platformcode.config import get_setting
 
 __channel__ = "autoplay"
 
@@ -88,6 +89,7 @@ def start(itemlist, item):
 
     base_item = item
 
+    
     if not config.is_xbmc():
         #platformtools.dialog_notification('AutoPlay ERROR', 'Sólo disponible para XBMC/Kodi')
         return itemlist
@@ -117,12 +119,17 @@ def start(itemlist, item):
     # Obtiene los ajustes des autoplay para este canal
     settings_node = channel_node.get('settings', {})
 
-    if settings_node['active']:
+    if get_setting('autoplay') or settings_node['active']:
         url_list_valid = []
         autoplay_list = []
         autoplay_b = []
+        favorite_langs = []
         favorite_servers = []
         favorite_quality = []
+
+        #2nd lang, vemos si se quiere o no filtrar
+        status_language = config.get_setting("filter_languages", channel_id)
+
 
         # Guarda el valor actual de "Accion y Player Mode" en preferencias
         user_config_setting_action = config.get_setting("default_action")
@@ -142,7 +149,7 @@ def start(itemlist, item):
         #       2: Solo servidores
         #       3: Solo calidades
         #       4: No ordenar
-        if settings_node['custom_servers'] and settings_node['custom_quality']:
+        if (settings_node['custom_servers'] and settings_node['custom_quality']):
             priority = settings_node['priority']  # 0: Servidores y calidades o 1: Calidades y servidores
         elif settings_node['custom_servers']:
             priority = 2  # Solo servidores
@@ -168,13 +175,16 @@ def start(itemlist, item):
             favorite_quality.append(channel_node['quality'][settings_node['quality_%s' % num]])
 
         # Se filtran los enlaces de itemlist y que se correspondan con los valores de autoplay
-        for item in itemlist:
+        for n, item in enumerate(itemlist):
             autoplay_elem = dict()
             b_dict = dict()
 
             # Comprobamos q se trata de un item de video
             if 'server' not in item:
                 continue
+            #2nd lang lista idiomas
+            if item.language not in favorite_langs:
+                favorite_langs.append(item.language)
 
             # Agrega la opcion configurar AutoPlay al menu contextual
             if 'context' not in item:
@@ -200,6 +210,7 @@ def start(itemlist, item):
                     b_dict['videoitem']= item
                     autoplay_b.append(b_dict)
                     continue
+                autoplay_elem["indice_lang"] = favorite_langs.index(item.language)
                 autoplay_elem["indice_server"] = favorite_servers.index(item.server.lower())
                 autoplay_elem["indice_quality"] = favorite_quality.index(item.quality)
 
@@ -212,6 +223,7 @@ def start(itemlist, item):
                     b_dict['videoitem'] = item
                     autoplay_b.append(b_dict)
                     continue
+                autoplay_elem["indice_lang"] = favorite_langs.index(item.language)
                 autoplay_elem["indice_server"] = favorite_servers.index(item.server.lower())
 
             elif priority == 3:  # Solo calidades
@@ -223,6 +235,7 @@ def start(itemlist, item):
                     b_dict['videoitem'] = item
                     autoplay_b.append(b_dict)
                     continue
+                autoplay_elem["indice_lang"] = favorite_langs.index(item.language)
                 autoplay_elem["indice_quality"] = favorite_quality.index(item.quality)
 
             else:  # No ordenar
@@ -241,19 +254,22 @@ def start(itemlist, item):
 
         # Ordenamos segun la prioridad
         if priority == 0:  # Servidores y calidades
-            autoplay_list.sort(key=lambda orden: (orden['indice_server'], orden['indice_quality']))
+            autoplay_list.sort(key=lambda orden: (orden['indice_lang'], orden['indice_server'], orden['indice_quality']))
 
         elif priority == 1:  # Calidades y servidores
-            autoplay_list.sort(key=lambda orden: (orden['indice_quality'], orden['indice_server']))
+            autoplay_list.sort(key=lambda orden: (orden['indice_lang'], orden['indice_quality'], orden['indice_server']))
 
         elif priority == 2:  # Solo servidores
-            autoplay_list.sort(key=lambda orden: orden['indice_server'])
+            autoplay_list.sort(key=lambda orden: (orden['indice_lang'], orden['indice_server']))
 
         elif priority == 3:  # Solo calidades
-            autoplay_list.sort(key=lambda orden: orden['indice_quality'])
+            autoplay_list.sort(key=lambda orden: (orden['indice_lang'], orden['indice_quality']))
 
         # Se prepara el plan b, en caso de estar activo se agregan los elementos no favoritos al final
-        plan_b = settings_node['plan_b']
+        try:
+            plan_b = settings_node['plan_b']
+        except:
+            plan_b = True
         text_b = ''
         if plan_b:
             autoplay_list.extend(autoplay_b)
@@ -320,7 +336,7 @@ def start(itemlist, item):
                             platformtools.play_video(videoitem, autoplay=True)
                     except:
                         pass
-
+                    sleep(3)
                     try:
                         if platformtools.is_playing():
                             PLAYED = True
@@ -341,7 +357,7 @@ def start(itemlist, item):
 
                     # Si no quedan elementos en la lista se informa
                     if autoplay_elem == autoplay_list[-1]:
-                         platformtools.dialog_notification('AutoPlay', config.get_localized_string(60072))
+                         platformtools.dialog_notification('AutoPlay', config.get_localized_string(60072) % videoitem.server.upper())
 
         else:
             platformtools.dialog_notification(config.get_localized_string(60074), config.get_localized_string(60075))
@@ -391,14 +407,15 @@ def init(channel, list_servers, list_quality, reset=False):
             # Se comprueba que no haya calidades ni servidores duplicados
             if 'default' not in list_quality:
                 list_quality.append('default')
-            list_servers = list(set(list_servers))
-            list_quality = list(set(list_quality))
+            # list_servers = list(set(list_servers))
+            # list_quality = list(set(list_quality))
 
             # Creamos el nodo del canal y lo añadimos
             channel_node = {"servers": list_servers,
                             "quality": list_quality,
                             "settings": {
                                 "active": False,
+                                "plan_b": True,
                                 "custom_servers": False,
                                 "custom_quality": False,
                                 "priority": 0}}
@@ -455,7 +472,7 @@ def check_value(channel, itemlist):
 
     for item in itemlist:
         if item.server.lower() not in server_list and item.server !='':
-            server_list.append(item.server)
+            server_list.append(item.server.lower())
             change = True
         if item.quality not in quality_list and item.quality !='':
             quality_list.append(item.quality)
@@ -672,7 +689,7 @@ def is_active(channel):
     # Obtiene los ajustes des autoplay para este canal
     settings_node = channel_node.get('settings', {})
 
-    return settings_node.get('active', False)
+    return settings_node.get('active', False) or get_setting('autoplay')
 
 
 def reset(item, dict):

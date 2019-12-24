@@ -9,7 +9,7 @@ from core import servertools
 from core import httptools
 
 
-host = 'https://www.javwhores.com/'
+host = 'https://www.javwhores.com'
 
 
 def mainlist(item):
@@ -50,7 +50,7 @@ def categorias(item):
         scrapedplot = ""
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
                               thumbnail=scrapedthumbnail , plot=scrapedplot) )
-    return itemlist
+    return sorted(itemlist, key=lambda i: i.title)
 
 
 def lista(item):
@@ -74,9 +74,13 @@ def lista(item):
         itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
                               plot=plot, contentTitle = title))
     next_page = scrapertools.find_single_match(data, '<li class="next"><a href="([^"]+)"')
+    if "#videos" in next_page:
+        next_page = scrapertools.find_single_match(data, 'data-parameters="sort_by:post_date;from:(\d+)">Next')
+        next = scrapertools.find_single_match(item.url, '(.*?/)\d+')
+        next_page = next + "%s/" % next_page
     if next_page:
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="lista", title="Página Siguiente >>" , text_color="blue", url=next_page ) )
+        itemlist.append(item.clone(action="lista", title= next_page, text_color="blue", url=next_page ) )
     return itemlist
 
 
@@ -84,16 +88,15 @@ def play(item):
     logger.info()
     itemlist = []
     data = httptools.downloadpage(item.url).data
-    scrapedurl = scrapertools.find_single_match(data, 'video_alt_url3: \'([^\']+)\'')
-    if scrapedurl == "" :
-        scrapedurl = scrapertools.find_single_match(data, 'video_alt_url2: \'([^\']+)\'')
-    if scrapedurl == "" :
-        scrapedurl = scrapertools.find_single_match(data, 'video_alt_url: \'([^\']+)\'')
-    if scrapedurl == "" :
-        scrapedurl = scrapertools.find_single_match(data, 'video_url: \'([^\']+)\'')
-
-    itemlist.append(Item(channel=item.channel, action="play", title=scrapedurl, fulltitle=item.title, url=scrapedurl,
-                        thumbnail=item.thumbnail, plot=item.plot, show=item.title, server="directo", folder=False))
+    if "video_url_text" in data:
+        patron = '(?:video_url|video_alt_url[0-9]*):\s*\'([^\']+)\'.*?'
+        patron += '(?:video_url_text|video_alt_url[0-9]*_text):\s*\'([^\']+)\''
+    else:
+        patron = '(?:video_url|video_alt_url[0-9]*):\s*\'([^\']+)\'.*?'
+        patron += 'postfix:\s*\'([^\']+)\''
+    matches = scrapertools.find_multiple_matches(data, patron)
+    for url,quality in matches:
+        itemlist.append(['%s' %quality, url])
     return itemlist
 
 

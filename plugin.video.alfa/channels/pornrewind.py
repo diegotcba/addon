@@ -10,6 +10,7 @@ from core import httptools
 
 host = 'https://www.pornrewind.com'
 
+
 def mainlist(item):
     logger.info()
     itemlist = []
@@ -45,7 +46,7 @@ def categorias(item):
     for scrapedurl,scrapedtitle,scrapedthumbnail in matches:
         scrapedplot = ""
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
-                              thumbnail=scrapedthumbnail, plot=scrapedplot) )
+                              fanart=scrapedthumbnail, thumbnail=scrapedthumbnail, plot=scrapedplot) )
     return itemlist
 
 
@@ -62,11 +63,16 @@ def lista(item):
         title = "[COLOR yellow]" + scrapedtime + "[/COLOR] " + scrapedtitle
         thumbnail = scrapedthumbnail
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="findvideos", title=title, url=url, thumbnail=thumbnail,
-                              plot=plot, contentTitle = title))
+        itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
+                              fanart=thumbnail, plot=plot, contentTitle = title))
     next_page = scrapertools.find_single_match(data, '<li class="direction"><a href="([^"]+)" data-ajax="pagination">')
     if next_page:
         next_page = urlparse.urljoin(item.url,next_page)
         itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page ) )
     return itemlist
 
+
+def play(item):
+    logger.info(item)
+    itemlist = servertools.find_video_items(item.clone(url = item.url, contentTitle = item.title))
+    return itemlist

@@ -4,7 +4,7 @@
   "active": true,
   "adult": false,
   "language": ["cast", "lat"],
-  "thumbnail": "http://www.todo-peliculas.com/images/logo.png",
+  "thumbnail": "https://www.todo-peliculas.net/templates/default/images/logo/todo-peliculas.png",
   "banner": "",
   "version": 1,
   "categories": [
@@ -17,7 +17,7 @@
       "id": "include_in_global_search",
       "type": "bool",
       "label": "Incluir en busqueda global",
-      "default": true,
+      "default": false,
       "enabled": true,
       "visible": true
     },

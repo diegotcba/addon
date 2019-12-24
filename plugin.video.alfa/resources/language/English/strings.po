@@ -498,15 +498,15 @@ msgid "Search for actor/actress"
 msgstr ""
 
 msgctxt "#60000"
-msgid "Filtra server (Black List)"
+msgid "Filter server (Black List)"
 msgstr ""
 
 msgctxt "#60001"
-msgid "Filtra server (Black List)\nNessun collegamento disponibile che soddisfi i requisiti della Black list.\nRiprova modificando il filtro in 'Configurazione Server"
+msgid "No links available that meets the requirements of the Black list. Try again by changing the filter in 'Server Configuration"
 msgstr ""
 
 msgctxt "#60003"
-msgid "Connessione con %s"
+msgid "Connecting with %s"
 msgstr ""
 
 msgctxt "#60004"
@@ -1046,7 +1046,7 @@ msgid "Movie"
 msgstr ""
 
 msgctxt "#60245"
-msgid "Series"
+msgid "tv show"
 msgstr ""
 
 msgctxt "#60246"
@@ -4267,10 +4267,6 @@ msgctxt "#70392"
 msgid "Rate with a [COLOR %s]%s[/ COLOR]"
 msgstr ""
 
-msgctxt "#70393"
-msgid "[%s]: Select the correct %s "
-msgstr ""
-
 msgctxt "#70394"
 msgid "Action"
 msgstr ""
@@ -4731,10 +4727,6 @@ msgctxt "#70508"
 msgid "Search in Abandomoviez"
 msgstr ""
 
-msgctxt "#70509"
-msgid "Search in Jayhap (Youtube, Vimeo & Dailymotion)"
-msgstr ""
-
 msgctxt "#70510"
 msgid "Manual Search in Youtube"
 msgstr ""
@@ -4809,10 +4801,6 @@ msgstr ""
 
 msgctxt "#70528"
 msgid "Default folder"
-msgstr ""
-
-msgctxt "#70529"
-msgid "Repeated link"
 msgstr ""
 
 msgctxt "#70530"
@@ -4943,3 +4931,6 @@ msgctxt "#70561"
 msgid "Search Similar
 msgstr ""
 
+msgctxt "#70562"
+msgid "Autoplay (Enable autoplay on all supported channels)"
+msgstr "Autoplay (Enable autoplay on all supported channels)"
