@@ -1,7 +1,17 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
-import os, sys
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
+
+
 from platformcode import config, logger
 from core import scrapertools
 from core.item import Item
@@ -14,7 +24,7 @@ def mainlist(item):
     logger.info()
     itemlist = []
     itemlist.append( Item(channel=item.channel, title="Nuevas" , action="lista", url=host + "/?page=1"))
-    itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host + "/categories/"))
+    # itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host + "/categories/"))
     itemlist.append( Item(channel=item.channel, title="Buscar", action="search"))
     return itemlist
 
@@ -22,7 +32,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/search/?q=%s" % texto
+    item.url = "%s/search/?q=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -43,13 +53,13 @@ def categorias(item):
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedthumbnail,scrapedtitle,cantidad in matches:
         scrapedplot = ""
-        scrapedtitle = scrapedtitle + " (" + cantidad + ")"
+        scrapedtitle = "%s (%s)" % (scrapedtitle,cantidad)
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
                               fanart=scrapedthumbnail, thumbnail=scrapedthumbnail , plot=scrapedplot) )
     next_page = scrapertools.find_single_match(data,'<a href="([^"]+)" class="next">Next page &raquo;</a>')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="categorias" , title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="categorias" , title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
@@ -64,7 +74,7 @@ def lista(item):
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedtitle,duracion,scrapedthumbnail  in matches:
         url = scrapedurl
-        title = "[COLOR yellow]" + duracion + "[/COLOR] " + scrapedtitle
+        title = "[COLOR yellow]%s[/COLOR] %s" % (duracion,scrapedtitle)
         contentTitle = title
         thumbnail = scrapedthumbnail
         plot = ""
@@ -73,7 +83,7 @@ def lista(item):
     next_page = scrapertools.find_single_match(data,'<a href="([^"]+)" class="next">Next page &raquo;</a>')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="lista", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 

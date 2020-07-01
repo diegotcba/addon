@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
 import re
 
 from platformcode import config, logger
@@ -12,13 +20,13 @@ from channels import filtertools
 from channels import autoplay
 
 IDIOMAS = {'vo': 'VO'}
-list_language = IDIOMAS.values()
+list_language = list(IDIOMAS.values())
 list_quality = []
 list_servers = ['mangovideo']
 
 # https://playpornfree.org/    https://mangoporn.net/   https://watchfreexxx.net/   https://losporn.org/  https://xxxstreams.me/  https://speedporn.net/
 
-host = 'https://watchpornfree.info'
+host = 'https://watchpornfree.info'   #'https://xxxparodyhd.net'  'http://www.veporns.com'  'http://streamporno.eu'  playpornx
 
 def mainlist(item):
     logger.info("")
@@ -42,7 +50,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info("")
     texto = texto.replace(" ", "+")
-    item.url = host + "/?s=%s" % texto
+    item.url = "%s/?s=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -102,10 +110,18 @@ def findvideos(item):
     patron = 'href="([^"]+)"'
     matches = re.compile(patron, re.DOTALL).findall(links_data)
     for url in matches:
-        itemlist.append(Item(channel=item.channel, title='%s', url=url, action='play', language='VO',contentTitle = item.contentTitle))
+        if "streamz" in url:
+            url = url.replace("streamz.cc", "stream2.vg").replace("streamz.vg", "stream2.vg")
+            # url= httptools.downloadpage(url).url
+            # url= url.replace("/x", "/getlink-")
+            # url += ".dll"
+            # url = httptools.downloadpage(url, headers={"referer": url}, follow_redirects=False).headers["location"]
+        if not ".xyz/" in url: #netu
+            itemlist.append(Item(channel=item.channel, title='%s', url=url, action='play', language='VO',contentTitle = item.contentTitle))
     itemlist = servertools.get_servers_itemlist(itemlist, lambda x: x.title % x.server)
     # Requerido para FilterTools
-    itemlist = filtertools.get_links(itemlist, item, list_language)
+    itemlist = filtertools.get_links(itemlist, item, list_language, list_quality)
     # Requerido para AutoPlay
     autoplay.start(itemlist, item)
     return itemlist
+

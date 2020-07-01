@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
 import re
 
 from platformcode import config, logger
@@ -12,10 +20,10 @@ from channels import filtertools
 from channels import autoplay
 
 IDIOMAS = {'vo': 'VO'}
-list_language = IDIOMAS.values()
-list_quality = []
+list_language = list(IDIOMAS.values())
+list_quality = ['default']
 list_servers = ['gounlimited']
-host = 'http://freepornstreams.org'    #es http://xxxstreams.org 
+host = 'http://freepornstreams.org'    #es http://xxxstreams.org http://fullxxxmovies.net
 
 
 def mainlist(item):
@@ -26,7 +34,7 @@ def mainlist(item):
 
     itemlist.append( Item(channel=item.channel, title="Peliculas" , action="lista", url=host + "/free-full-porn-movies/"))
     itemlist.append( Item(channel=item.channel, title="Videos" , action="lista", url=host + "/videos/"))
-    # itemlist.append( Item(channel=item.channel, title="Canal" , action="categorias", url=host))
+    itemlist.append( Item(channel=item.channel, title="Canal" , action="categorias", url=host))
     itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host))
     itemlist.append( Item(channel=item.channel, title="Buscar", action="search"))
 
@@ -38,7 +46,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/?s=%s" % texto
+    item.url = "%s/?s=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -54,9 +62,9 @@ def categorias(item):
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
     if item.title == "Categorias" :
-        data = scrapertools.find_single_match(data,'Tags</h3>(.*?)</ul>')
+        data = scrapertools.find_single_match(data,'filehosts</h3>(.*?)</aside>')
     else:
-        data = scrapertools.find_single_match(data,'>Top Sites</a>(.*?)</aside>')
+        data = scrapertools.find_single_match(data,'Popular Paysites</h3>(.*?)</aside>')
     patron  = '<a href="([^"]+)".*?>(.*?)</a>'
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedtitle in matches:
@@ -79,14 +87,15 @@ def lista(item):
     patron += '<img src="([^"]+)"'
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedtitle,scrapedthumbnail in matches:
-        if '/HD' in scrapedtitle : title= "[COLOR red]" + "HD" + "[/COLOR] " + scrapedtitle
-        elif 'SD' in scrapedtitle : title= "[COLOR red]" + "SD" + "[/COLOR] " + scrapedtitle
-        elif 'FullHD' in scrapedtitle : title= "[COLOR red]" + "FullHD" + "[/COLOR] " + scrapedtitle
-        elif '1080' in scrapedtitle : title= "[COLOR red]" + "1080p" + "[/COLOR] " + scrapedtitle
+        if '/HD' in scrapedtitle : title= "[COLOR red]HD[/COLOR] %s" % scrapedtitle
+        elif 'SD' in scrapedtitle : title= "[COLOR red]SD[/COLOR] %s" % scrapedtitle
+        elif 'FullHD' in scrapedtitle : title= "[COLOR red]FullHD[/COLOR] %s" % scrapedtitle
+        elif '1080' in scrapedtitle : title= "[COLOR red]1080p[/COLOR] %s" % scrapedtitle
         else: title = scrapedtitle
         thumbnail = scrapedthumbnail.replace("jpg#", "jpg")
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="findvideos", title=title, url=scrapedurl, thumbnail=thumbnail,
+        if not "manyvids" in title:
+            itemlist.append( Item(channel=item.channel, action="findvideos", title=title, url=scrapedurl, thumbnail=thumbnail,
                               fanart=thumbnail, plot=plot) )
     next_page = scrapertools.find_single_match(data, '<div class="nav-previous"><a href="([^"]+)"')
     if next_page!="":
@@ -99,14 +108,14 @@ def findvideos(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|amp;|\s{2}|&nbsp;", "", data)
-    patron = '<a href="([^"]+)" rel="nofollow[^<]+>(?:Streaming|Download)'
+    patron = '<a href="([^"]+)" rel="nofollow[^>]+>(?:<strong>|)\s*(?:Streaming|Download)'
     matches = scrapertools.find_multiple_matches(data, patron)
     for url in matches:
         if not "ubiqfile" in url:
             itemlist.append(item.clone(action='play',title="%s", contentTitle=item.title, url=url))
     itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     # Requerido para FilterTools
-    itemlist = filtertools.get_links(itemlist, item, list_language)
+    itemlist = filtertools.get_links(itemlist, item, list_language, list_quality)
     # Requerido para AutoPlay
     autoplay.start(itemlist, item)
     return itemlist

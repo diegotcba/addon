@@ -1,7 +1,16 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
-import os, sys
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
+
 from platformcode import config, logger
 from core import scrapertools
 from core.item import Item
@@ -28,7 +37,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/results?search_query=%s" % texto
+    item.url = "%s/results?search_query=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -43,8 +52,6 @@ def categorias(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-
-
     patron = '<a href="([^"]+)">'
     patron += '<span class="text">([^<]+)</span>'
     patron += '<span class="num">([^<]+)</span>'
@@ -64,7 +71,6 @@ def catalogo(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-    logger.debug(data)
     patron = '<header class="clearfix" itemscope>.*?'
     patron += '<a href="([^"]+)".*?'
     patron += '<img src="([^"]+)" alt="([^"]+)"'
@@ -72,7 +78,8 @@ def catalogo(item):
     for scrapedurl,scrapedthumbnail,scrapedtitle in matches:
         scrapedplot = ""
         scrapedurl = scrapedurl + "?page=1"
-        thumbnail = "https:" + scrapedthumbnail
+        if not scrapedthumbnail.startswith("https"):
+            thumbnail = "https:%s" % scrapedthumbnail
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
                               thumbnail=thumbnail , plot=scrapedplot) )
     next_page = scrapertools.find_single_match(data, '<a href="([^"]+)" class="btn btn-secondary"><span class="text">Next')
@@ -88,7 +95,7 @@ def lista(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-    patron = '<li class="video-item poptrigger".*?'
+    patron = '<li class="video-item.*?'
     patron += 'href="([^"]+)" data-title="([^"]+)".*?'
     patron += '<span class="duration">(.*?)</span>.*?'
     patron += 'src=\'([^\']+)\'.*?'
@@ -118,14 +125,7 @@ def lista(item):
 
 
 def play(item):
-    logger.info()
-    itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
-    patron = '<source src="([^"]+)"'
-    matches = scrapertools.find_multiple_matches(data, patron)
-    for url in matches:
-        url += "|Referer=%s" % host
-        itemlist.append(item.clone(action="play", title = item.title, url=url ))
+    logger.info(item)
+    itemlist = servertools.find_video_items(item.clone(url = item.url, contentTitle = item.title))
     return itemlist
 

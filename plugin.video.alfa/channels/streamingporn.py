@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
 import re
 
 from platformcode import config, logger
@@ -12,11 +20,11 @@ from channels import filtertools
 from channels import autoplay
 
 IDIOMAS = {'vo': 'VO'}
-list_language = IDIOMAS.values()
+list_language = list(IDIOMAS.values())
 list_quality = []
 list_servers = ['gounlimited']
 
-host = 'http://streamingporn.xyz'
+host = 'http://streamingporn.xyz'   #'http://sexgalaxy.net'
 
 def mainlist(item):
     logger.info()
@@ -38,7 +46,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/?s=%s" % texto
+    item.url = "%s/?s=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -89,22 +97,25 @@ def lista(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
-    patron  = '<div class="entry-featuredImg">.*?<a href="([^"]+)">.*?<img src="([^"]+)" alt="([^"]+)">'
+    patron  = '<article id="post-\d+".*?'
+    patron += '<a href="([^"]+)" rel="bookmark">([^<]+)<.*?'
+    patron += '<img src="([^"]+)"'
     matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,scrapedthumbnail,scrapedtitle  in matches:
+    for scrapedurl,scrapedtitle,scrapedthumbnail  in matches:
         url = scrapedurl
         title = scrapedtitle
         if 'HD' in scrapedtitle :
             calidad = scrapertools.find_single_match(scrapedtitle, '(\d+)p')
-            title = "[COLOR red]" + "HD" +"[/COLOR] "+ scrapedtitle
+            title = "[COLOR red]HD[/COLOR] %s"  %scrapedtitle
             if calidad :
-                title = "[COLOR red]" + "HD" + calidad +" [/COLOR] "+ scrapedtitle
+                title = "[COLOR red]HD%s[/COLOR] %s"  %(calidad,scrapedtitle)
         contentTitle = title
         thumbnail = scrapedthumbnail
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="findvideos" , title=title , url=url, thumbnail=thumbnail, 
+        if not "manyvids" in url:
+            itemlist.append( Item(channel=item.channel, action="findvideos" , title=title , url=url, thumbnail=thumbnail, 
                               fanart=scrapedthumbnail, plot=plot, contentTitle = contentTitle) )
-    next_page_url = scrapertools.find_single_match(data,'<div class="loadMoreInfinite"><a href="(.*?)" >Load More')
+    next_page_url = scrapertools.find_single_match(data,'<a class="next page-numbers" href="([^"]+)">Next page')
     if next_page_url!="":
         next_page_url = urlparse.urljoin(item.url,next_page_url)
         itemlist.append( Item(channel=item.channel , action="lista" , title="Página Siguiente >>" , 
@@ -113,16 +124,17 @@ def lista(item):
 
 
 def findvideos(item):
-    logger.info()
     itemlist = []
     data = httptools.downloadpage(item.url).data
-    patron = '<a href="([^"]+)" [^<]+>Streaming'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl in matches:
-        itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=scrapedurl))
+    data = re.sub(r"\n|\r|\t|amp;|\s{2}|&nbsp;", "", data)
+    patron = '<a href="([^"]+)" rel="nofollow[^<]+>(?:Streaming|Download)'
+    matches = scrapertools.find_multiple_matches(data, patron)
+    for url in matches:
+        if not "ubiqfile" in url:
+            itemlist.append(item.clone(action='play',title="%s", contentTitle=item.title, url=url))
     itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     # Requerido para FilterTools
-    itemlist = filtertools.get_links(itemlist, item, list_language)
+    itemlist = filtertools.get_links(itemlist, item, list_language, list_quality)
     # Requerido para AutoPlay
     autoplay.start(itemlist, item)
     return itemlist

@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
-import os, sys
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
+
 from core import scrapertools
 from core import servertools
 from core.item import Item
 from platformcode import config, logger
 from core import httptools
-from channels import pornhub, xvideos,youporn,TXXX
 
 host = 'http://qwertty.net'
 
@@ -26,7 +34,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/?s=%s" % texto
+    item.url = "%s/?s=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -66,15 +74,15 @@ def lista(item):
         thumbnail = scrapertools.find_single_match(scrapedthumbnail, 'poster="([^"]+)"')
         if thumbnail == "":
             thumbnail = scrapertools.find_single_match(scrapedthumbnail, "data-thumbs='(.*?jpg)")
-        title = "[COLOR yellow]" + duracion + "[/COLOR] " + scrapedtitle
-        itemlist.append( Item(channel=item.channel, action="play", title=title, url=scrapedurl,
+        title = "[COLOR yellow]%s[/COLOR] %s" % (duracion,scrapedtitle)
+        itemlist.append( Item(channel=item.channel, action="play", title=title, contentTitle = title, url=scrapedurl,
                               fanart=thumbnail, thumbnail=thumbnail, plot=scrapedplot) )
     next_page = scrapertools.find_single_match(data,'<li><a href="([^"]+)">Next</a>')
     if next_page=="":
         next_page = scrapertools.find_single_match(data,'<li><a class="current">.*?<li><a href="([^"]+)" class="inactive">')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="lista", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
@@ -93,23 +101,11 @@ def play(item):
             if url=="#":
                 url = scrapertools.find_single_match(data,'playerData.cdnPath480         = \'([^\']+)\'')
             itemlist.append(item.clone(action="play", title=url, contentTitle = url, url=url))
-    elif "xvideos1" in url1: 
-        item1 = item.clone(url=url1)
-        itemlist = xvideos.play(item1)
-        return itemlist
-    elif "pornhub" in url1 :
-        url = url1
-    elif "txx" in url1:# Falta conector
-        item1 = item.clone(url=url1)
-        itemlist = TXXX.play(item1)
-        return itemlist
-    elif "youporn" in url1: 
-        item1 = item.clone(url=url1)
-        itemlist = youporn.play(item1)
-        return itemlist
     else:
         data = httptools.downloadpage(url1).data
         url  = scrapertools.find_single_match(data,'"quality":"\d+","videoUrl":"([^"]+)"')
+    if not url:
+        url=url1
     url = url.replace("\/", "/")
 
     itemlist.append(item.clone(action="play", title= "%s  " + url1, contentTitle = item.title, url=url))

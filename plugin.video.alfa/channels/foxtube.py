@@ -1,7 +1,16 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
-import os, sys
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
+
 from platformcode import config, logger
 from core import scrapertools
 from core.item import Item
@@ -11,14 +20,13 @@ from channels import cumlouder
 
 host = 'https://www.foxtube.com' #https://www.muyzorras.com
 
-#Falta channel ajax {url:"/users/doIFollow/749/"
 
 def mainlist(item):
     logger.info()
     itemlist = []
     itemlist.append( Item(channel=item.channel, title="Ultimos" , action="lista", url=host))
     itemlist.append( Item(channel=item.channel, title="PornStar" , action="catalogo", url=host + '/pornstars/'))
-    # itemlist.append( Item(channel=item.channel, title="Canal" , action="catalogo", url=host + '/channels/'))
+    itemlist.append( Item(channel=item.channel, title="Canal" , action="catalogo", url=host + '/channels/'))
     
     itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host))
     
@@ -28,8 +36,8 @@ def mainlist(item):
 
 def search(item, texto):
     logger.info()
-    texto = texto.replace(" ", "+")
-    item.url = host + "/buscador/%s" % texto
+    texto = texto.replace(" ", "-")
+    item.url = "%s/tags/%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -83,8 +91,26 @@ def categorias(item):
 def lista(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
+    if "channels" in item.url:
+        canal = ""
+        data = httptools.downloadpage(item.url).data
+        id = scrapertools.find_single_match(data,'<section id="contenedor".*?a href="https://www.foxtube.com/pu/(\d+)')
+        canal = scrapertools.find_single_match(data,'path : \'([^\']+)\'')
+        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+        post = {'path': '%s' %canal, 'order_vid': 'uv'} 
+        item.url = "https://www.foxtube.com/users/get/%s/videos/1/" % id
+        data = httptools.downloadpage(item.url, post=post, headers=headers).data
+    if "users" in item.url:
+        canal= item.canal
+        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+        post = {'path': '%s' %canal, 'order_vid': 'uv'} 
+        data = httptools.downloadpage(item.url, post=post, headers=headers).data
+    else:
+        data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>", "", data)
+    data = data.replace("\\n", "").replace("\\", "")
+    if "pornstars" in item.url:
+        data = scrapertools.find_single_match(data,'<html lang="en">(.*?)>Similar pornstars</h2>')
     patron = '<article>.*?'
     patron += '<a href="([^"]+)".*?'
     patron += '<img.*?src="([^"]+)".*?'
@@ -93,15 +119,23 @@ def lista(item):
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedthumbnail,scrapedtitle,duracion  in matches:
         time = scrapertools.find_single_match(duracion, '<span>([^<]+)</span></span>')
-        title = "[COLOR yellow]" + time + "[/COLOR] " + scrapedtitle
+        title = "[COLOR yellow]%s[/COLOR] %s" %(time,scrapedtitle)
         if 'HD' in duracion :
-            title = "[COLOR yellow]" + time + "[/COLOR] " + "[COLOR red]" + "HD" + "[/COLOR]  " + scrapedtitle
+            title = "[COLOR yellow]%s[/COLOR] [COLOR red]HD[/COLOR]  %s" %(time,scrapedtitle)
         thumbnail = scrapedthumbnail.replace("https","http") + "|Referer=%s/" %host
         plot = ""
         itemlist.append( Item(channel=item.channel, action="play", title=title, url=scrapedurl, thumbnail=thumbnail,
                               fanart=thumbnail, plot=plot, contentTitle = title))
     next_page = scrapertools.find_single_match(data,'<a rel="next" href="([^"]+)">&gt')
-    if next_page!="":
+    if "pornstars" in item.url:
+        next_page = scrapertools.find_single_match(data,'<a href="([^"]+)" rel="next">')
+    if "users" in item.url:
+        page = scrapertools.find_single_match(item.url, "(.*?/videos)/\d+")
+        next_page = scrapertools.find_single_match(data, '<li class="selected">.*?data-pag="(\d+)"')
+        if next_page:
+            next_page = "%s/%s/" %(page,next_page)
+            itemlist.append(item.clone(action="lista" , title="Página Siguiente >>", text_color="blue", url=next_page, canal= canal) )
+    else:
         next_page = urlparse.urljoin(item.url,next_page)
         itemlist.append(item.clone(action="lista" , title="Página Siguiente >>", text_color="blue", url=next_page) )
     return itemlist

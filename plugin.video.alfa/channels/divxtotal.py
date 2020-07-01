@@ -1,9 +1,18 @@
 # -*- coding: utf-8 -*-
 
-import re
+from builtins import range
 import sys
-import urllib
-import urlparse
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    #from future import standard_library
+    #standard_library.install_aliases()
+    import urllib.parse as urlparse                               # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                               # Usamos el nativo de PY2 que es más rápido
+
+import re
 import time
 
 from channelselector import get_thumb
@@ -20,7 +29,7 @@ from channels import autoplay
 
 #IDIOMAS = {'CAST': 'Castellano', 'LAT': 'Latino', 'VO': 'Version Original'}
 IDIOMAS = {'Castellano': 'CAST', 'Latino': 'LAT', 'Version Original': 'VO'}
-list_language = IDIOMAS.values()
+list_language = list(IDIOMAS.values())
 list_quality = []
 list_servers = ['torrent']
 
@@ -50,28 +59,24 @@ def mainlist(item):
     
     autoplay.init(item.channel, list_servers, list_quality)
 
-    item.url_plus = "peliculas-16/"
+    item.url_plus = "peliculas-20/"
     itemlist.append(Item(channel=item.channel, title="Películas", action="categorias", 
                 url=host + item.url_plus, url_plus=item.url_plus, thumbnail=thumb_cartelera, 
                 extra="Películas"))
-    item.url_plus = "peliculas-hd/"
-    itemlist.append(Item(channel=item.channel, title="Películas HD", action="categorias", 
+    item.url_plus = "peliculas-hd-5/"
+    itemlist.append(Item(channel=item.channel, title="    - Películas HD", action="categorias", 
                 url=host + item.url_plus, url_plus=item.url_plus, thumbnail=thumb_pelis_hd, 
                 extra="Películas HD"))
     item.url_plus = "peliculas-dvdr/"
-    itemlist.append(Item(channel=item.channel, title="Películas DVDR", action="categorias", 
+    itemlist.append(Item(channel=item.channel, title="    - Películas DVDR", action="categorias", 
                 url=host + item.url_plus, url_plus=item.url_plus, thumbnail=thumb_pelis_hd, 
                 extra="Películas DVDR"))
     item.url_plus = "peliculas-3-d/"
-    itemlist.append(Item(channel=item.channel, title="Películas 3D", action="categorias", 
+    itemlist.append(Item(channel=item.channel, title="    - Películas 3D", action="categorias", 
                 url=host + item.url_plus, url_plus=item.url_plus, thumbnail=thumb_pelis_hd, 
                 extra="Películas 3D"))
-
-    itemlist.append(Item(channel=item.channel, url=host, title="", folder=False, thumbnail=thumb_separador))
     
     itemlist.append(Item(channel=item.channel, url=host, title="Series", action="submenu", thumbnail=thumb_series, extra="series"))
-
-    itemlist.append(Item(channel=item.channel, url=host, title="", folder=False, thumbnail=thumb_separador))
     
     itemlist.append(Item(channel=item.channel, title="Buscar...", action="search", url=host + "?s=%s", thumbnail=thumb_buscar, extra="search"))
 
@@ -102,13 +107,14 @@ def submenu(item):
         try:
             data = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)", "", httptools.downloadpage(item.url, timeout=timeout, headers=headers).data)
             data = js2py_conversion(data, item.url)
-            data = unicode(data, "utf-8", errors="replace").encode("utf-8")
+            if not PY3:
+                data = unicode(data, "utf-8", errors="replace").encode("utf-8")
         except:
             pass
 
         patron = '<ul class="nav navbar-nav">.*?<li><a href="[^"]+\/(series[^\/]+\/)">Series<\/a><\/li>'
         item.url_plus = scrapertools.find_single_match(data, patron)
-        if not item.url_plus: item.url_plus = 'series/'
+        if not item.url_plus: item.url_plus = 'series-5/'
         itemlist.append(item.clone(title="Series completas", action="listado", url=item.url + item.url_plus, url_plus=item.url_plus, thumbnail=thumb_series, extra="series"))
         itemlist.append(item.clone(title="Alfabético A-Z", action="alfabeto", url=item.url + item.url_plus + "?s=letra-%s", url_plus=item.url_plus, thumbnail=thumb_series, extra="series"))
 
@@ -130,7 +136,8 @@ def categorias(item):
     try:
         data = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)", "", httptools.downloadpage(item.url, timeout=timeout, headers=headers).data)
         data = js2py_conversion(data, item.url)
-        data = unicode(data, "utf-8", errors="replace").encode("utf-8")
+        if not PY3:
+            data = unicode(data, "utf-8", errors="replace").encode("utf-8")
     except:
         pass
         
@@ -249,7 +256,8 @@ def listado(item):
         try:
             data = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)|&nbsp;", "", httptools.downloadpage(next_page_url, timeout=timeout_search, headers=headers).data)
             data = js2py_conversion(data, next_page_url)
-            data = unicode(data, "utf-8", errors="replace").encode("utf-8")
+            if not PY3:
+                data = unicode(data, "utf-8", errors="replace").encode("utf-8")
         except:
             pass
         
@@ -311,7 +319,10 @@ def listado(item):
             
             title = scrapedtitle
             url = scrapedurl
-            title = title.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").replace("ü", "u").replace("ï¿½", "ñ").replace("Ã±", "ñ").replace("&atilde;", "a").replace("&etilde;", "e").replace("&itilde;", "i").replace("&otilde;", "o").replace("&utilde;", "u").replace("&ntilde;", "ñ").replace("&#8217;", "'")
+            title = title.replace("á", "a").replace("é", "e").replace("í", "i")\
+                    .replace("ó", "o").replace("ú", "u").replace("ü", "u")\
+                    .replace("ï¿½", "ñ").replace("Ã±", "ñ").replace("&#8217;", "'")\
+                    .replace("&amp;", "&")
             extra = item.extra
 
             #Si es una búsqueda, convierte los episodios en Series completas, aptas para la Videoteca
@@ -324,7 +335,8 @@ def listado(item):
                 try:
                     data_serie = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)|&nbsp;", "", httptools.downloadpage(scrapedurl, timeout=timeout, headers=headers).data)
                     data_serie = js2py_conversion(data_serie, scrapedurl)
-                    data_serie = unicode(data_serie, "utf-8", errors="replace").encode("utf-8")
+                    if not PY3:
+                        data_serie = unicode(data_serie, "utf-8", errors="replace").encode("utf-8")
                 except:
                     pass
                 
@@ -560,12 +572,16 @@ def findvideos(item):
 
     #Bajamos los datos de la página
     data = ''
-    patron = '<a onclick="eventDownloadTorrent\(.*?\)".*class="linktorrent.*?" href="([^"]+)"'
+    patron = 'class="linktorrent[^"]*"\s*href="(http[^"]+)"'
+    patron1 = 'onclick="'
+    patron1 += "post\('(?P<url>[^']+',\s*{u:\s*'[^']+)'}\);"
+    
     if item.contentType == 'movie':                                                 #Es una peli
         try:
             data = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)", "", httptools.downloadpage(item.url, timeout=timeout, headers=headers).data)
             data = js2py_conversion(data, item.url)
-            data = unicode(data, "utf-8", errors="replace").encode("utf-8")
+            if not PY3:
+                data = unicode(data, "utf-8", errors="replace").encode("utf-8")
         except:
             pass
             
@@ -581,6 +597,9 @@ def findvideos(item):
                 else:
                     return itemlist                                         #si no hay más datos, algo no funciona, pintamos lo que tenemos
 
+        if not scrapertools.find_single_match(data, patron):                        # Buscar con patrón alternativo
+            patron = patron1
+        
         if not item.armagedon:                                                      #Si es un proceso normal, seguimos
             matches = re.compile(patron, re.DOTALL).findall(data)
         if not matches:                                                             #error
@@ -617,7 +636,8 @@ def findvideos(item):
         item, itemlist = generictools.post_tmdb_findvideos(item, itemlist)
 
     #Ahora tratamos los enlaces .torrent
-    for scrapedurl in matches:                                          #leemos los torrents con la diferentes calidades
+    for scrapedurl_la in matches:                                       #leemos los torrents con la diferentes calidades
+        scrapedurl = urlparse.urljoin(host, scrapedurl_la).replace("download/torrent.php', {u: ", "download_tt.php?u=")
         #Generamos una copia de Item para trabajar sobre ella
         item_local = item.clone()
 
@@ -738,7 +758,8 @@ def episodios(item):
     try:
         data = re.sub(r"\n|\r|\t|\s{2}|(<!--.*?-->)|&nbsp;", "", httptools.downloadpage(item.url, timeout=timeout, headers=headers).data)
         data = js2py_conversion(data, item.url)
-        data = unicode(data, "utf-8", errors="replace").encode("utf-8")
+        if not PY3:
+            data = unicode(data, "utf-8", errors="replace").encode("utf-8")
     except:                                                                                 #Algún error de proceso, salimos
         pass
         
@@ -748,7 +769,10 @@ def episodios(item):
         return itemlist
 
     #Usamos el mismo patrón que en listado
-    patron = '<tr><td><img src="[^"]+".*?title="Idioma Capitulo" \/>(.*?)<a onclick="[^"]+".?href="[^"]+".?title="[^"]*">(.*?)<\/a><\/td><td><a href="([^"]+)".?title="[^"]*".?onclick="[^"]+".?<img src="([^"]+)".*?<\/a><\/td><td>.*?<\/td><\/tr>'
+    #patron = '<tr><td><img src="[^"]+".*?title="Idioma Capitulo" \/>(.*?)<a onclick="[^"]+".?href="[^"]+".?title="[^"]*">(.*?)<\/a><\/td><td><a href="([^"]+)".?title="[^"]*".?onclick="[^"]+".?<img src="([^"]+)".*?<\/a><\/td><td>.*?<\/td><\/tr>'
+    patron = '<tr><td><img src="[^"]+".*?title="Idioma Capitulo"\s* \/>(.*?)'
+    patron += '<a href=.*?title="">(.*?)<\/a><\/td><td><a href=.*?'
+    patron += '<td\s*class="opcion2_td".*?<a href="([^"]+)".*?<img src="([^"]+)"'
     matches = re.compile(patron, re.DOTALL).findall(data)
     if not matches:                                                             #error
         item = generictools.web_intervenida(item, data)                         #Verificamos que no haya sido clausurada

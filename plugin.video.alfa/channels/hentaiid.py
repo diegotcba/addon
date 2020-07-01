@@ -1,20 +1,36 @@
 # -*- coding: utf-8 -*-
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
 
 import re
-import urlparse
 
 from core import httptools
 from core import scrapertools
 from core.item import Item
 from platformcode import logger
+from channels import filtertools
+from channels import autoplay
+
+IDIOMAS = {'vo': 'VO'}
+list_language = list(IDIOMAS.values())
+list_quality = ['default']
+list_servers = ['mixdrop']
 
 CHANNEL_HOST = "http://hentai-id.tv/"
 
 
 def mainlist(item):
     logger.info()
+    itemlist = []
 
-    itemlist = list()
+    autoplay.init(item.channel, list_servers, list_quality)
+
     itemlist.append(Item(channel=item.channel, action="series", title="Novedades",
                          url=urlparse.urljoin(CHANNEL_HOST, "archivos/h2/"), extra="novedades"))
     itemlist.append(Item(channel=item.channel, action="generos", title="Por géneros", url=CHANNEL_HOST))
@@ -24,6 +40,8 @@ def mainlist(item):
                          url=urlparse.urljoin(CHANNEL_HOST, "archivos/high-definition/")))
     itemlist.append(Item(channel=item.channel, action="series", title="Mejores Hentais",
                          url=urlparse.urljoin(CHANNEL_HOST, "archivos/ranking-hentai/")))
+
+    autoplay.show_option(item.channel, itemlist)
 
     return itemlist
 
@@ -49,6 +67,7 @@ def generos(item):
 
 def series(item):
     logger.info()
+    itemlist = []
 
     data = re.sub(r"\n|\r|\t|\s{2}", "", httptools.downloadpage(item.url).data)
 
@@ -60,7 +79,6 @@ def series(item):
 
     pattern = '<a href="([^"]+)".*?<img src="([^"]+)" title="([^"]+)"'
     matches = re.compile(pattern, re.DOTALL).findall(data)
-    itemlist = []
 
     if item.extra == "novedades":
         action = "findvideos"
@@ -68,11 +86,10 @@ def series(item):
         action = "episodios"
 
     for url, thumbnail, title in matches:
-        contentTitle = title
         show = title
         # logger.debug("title=[{0}], url=[{1}], thumbnail=[{2}]".format(title, url, thumbnail))
-        itemlist.append(Item(channel=item.channel, action=action, title=title, url=url, thumbnail=thumbnail,
-                             show=show, fanart=thumbnail, folder=True))
+        itemlist.append(Item(channel=item.channel, action=action, title=title, contentTitle = title, url=url,
+                             show=show, thumbnail=thumbnail, fanart=thumbnail, folder=True))
 
     if pagination:
         page = scrapertools.find_single_match(pagination, '>(?:Page|Página)\s*(\d+)\s*(?:of|de)\s*\d+<')
@@ -103,7 +120,7 @@ def episodios(item):
         plot = item.plot
 
         # logger.debug("title=[{0}], url=[{1}], thumbnail=[{2}]".format(title, url, thumbnail))
-        itemlist.append(Item(channel=item.channel, action="findvideos", title=title, url=url,
+        itemlist.append(Item(channel=item.channel, action="findvideos", title=title, contentTitle = title, url=url,
                              thumbnail=thumbnail, plot=plot,
                              fanart=thumbnail))
 
@@ -143,5 +160,9 @@ def findvideos(item):
         videoitem.contentTitle = item.contentTitle
         videoitem.channel = item.channel
         videoitem.thumbnail = item.thumbnail
+    # Requerido para FilterTools
+    itemlist = filtertools.get_links(itemlist, item, list_language, list_quality)
+    # Requerido para AutoPlay
+    autoplay.start(itemlist, item)
 
     return itemlist

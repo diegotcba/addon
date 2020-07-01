@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,re
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
 
 from platformcode import config, logger
 from core import scrapertools
@@ -23,7 +32,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "%20")
-    item.url = host + "/results/%s" % texto
+    item.url = "%s/results/%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -80,11 +89,9 @@ def play(item):
     logger.info()
     itemlist = []
     data = httptools.downloadpage(item.url).data
-    data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
+    url= scrapertools.find_single_match(data, '<iframe sandbox="[^"]+" src="([^"]+)"')
     patron = '<iframe sandbox="[^"]+" src="([^"]+)"'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for url in matches:
-        itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=url))
+    itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=url))
     itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist
 

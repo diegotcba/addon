@@ -25,8 +25,8 @@ def mainlist(item):
 
 def search(item, texto):
     logger.info()
-    texto = texto.replace(" ", "+")
-    item.url = host + "/search/?q=%s" % texto
+    texto = texto.replace(" ", "%20")
+    item.url = "%s/search/?q=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -74,6 +74,8 @@ def categorias(item):
         cantidad = cantidad.replace("        ", "")
         scrapedtitle = scrapedtitle + " (" + cantidad +")"
         scrapedurl = urlparse.urljoin(item.url,scrapedurl)
+        if "categories" in scrapedurl:
+            scrapedurl += "/?sort_by=post_date"
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
                               thumbnail=scrapedthumbnail, plot=scrapedplot) )
     next_page = scrapertools.find_single_match(data,'<li class="next"><a href="([^"]+)"')
@@ -100,9 +102,15 @@ def lista(item):
         itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
                               plot=plot, contentTitle = title))
     next_page = scrapertools.find_single_match(data,'<li class="next"><a href="([^"]+)"')
-    if next_page!="":
+    if "#" in next_page:
+        next_page = scrapertools.find_single_match(data,'data-query="([^"]+)"><i class="mdi mdi-arrow-right">')
+        next_page = next_page.replace(":", "=").replace(";", "&").replace("+from_albums", "")
+        if "&" in item.url:
+            item.url = scrapertools.find_single_match(item.url, '(.*?)&')
+        next_page = "%s&%s" % (item.url, next_page)
+    if not next_page.startswith("https"):
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page) )
+    itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page) )
     return itemlist
 
 
@@ -116,7 +124,6 @@ def play(item):
     info_b, info_a = scrapertools.find_single_match(data, patron)
     post = 'param=%s,%s' % (info_a, info_b)
     new_data = httptools.downloadpage(post_url, post=post, headers=headers).data
-    logger.debug(new_data)
     texto = scrapertools.find_single_match(new_data, 'video_url":"([^"]+)"')
 
     url = dec_url(texto)

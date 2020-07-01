@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
 
 from core import jsontools as json
 from platformcode import config, logger
@@ -32,7 +41,7 @@ def categorias(item):
     patron = '<a class="category-item" href="([^"]+)">([^"]+)</a>'
     matches = re.compile(patron,re.DOTALL).findall(data)
     for scrapedurl,scrapedtitle in matches:
-        url = host + scrapedurl + "?ajax=1&type=most-recent&page=1"
+        url = "%s%s?ajax=1&type=top-rated&page=1" %(host, scrapedurl)  #most-recent
         scrapedplot = ""
         thumbnail = ""
         itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=url,
@@ -57,12 +66,12 @@ def lista(item):
         url= url.get('480', domain)
         url = url.replace("/\n/", "/")
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
-                              fanart=thumbnail, plot=plot,))
+        itemlist.append( Item(channel=item.channel, action="play", title=title, contentTitle = title, url=url,
+                              fanart=thumbnail, thumbnail=thumbnail, plot=plot))
     Actual = int(scrapertools.find_single_match(item.url, '&page=([0-9]+)'))
     if JSONData["pagesLeft"] - 1 > Actual:
         scrapedurl = item.url.replace("&page=" + str(Actual), "&page=" + str(Actual + 1))
-        itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=scrapedurl))
+        itemlist.append(item.clone(action="lista", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=scrapedurl))
     return itemlist
 
 

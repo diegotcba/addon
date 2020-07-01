@@ -23,10 +23,9 @@ def get_video_url(page_url, premium=False, user="", password="", video_password=
     video_urls = []
     data = httptools.downloadpage(page_url).data
     data = scrapertools.find_single_match(data,'mediaDefinition: \[(.*?)\]')
-    logger.debug(data)
     patron  = '"defaultQuality":.*?,"quality":"([^"]+)","videoUrl"\:"([^"]+)"'
     matches = scrapertools.find_multiple_matches(data, patron)
     for quality,scrapedurl  in matches:
         url =  scrapedurl.replace("\/", "/")
-        video_urls.append(["[redtube] %s" %quality, url])
+        video_urls.append(["[redtube] %sp" %quality, url])
     return video_urls

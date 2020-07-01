@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from builtins import range
+
 import glob
 import os
 
@@ -64,6 +66,18 @@ def getmainlist(view="thumb_"):
     itemlist.append(Item(title=config.get_localized_string(30104) + " (" + config.get_localized_string(20000) +" " + config.get_addon_version(with_fix=False) + ")", channel="help", action="mainlist",
                          thumbnail=get_thumb("help.png", view),
                          category=config.get_localized_string(30104), viewmode="list"))
+
+    itemlist.append(Item(channel="setting", action="call_chrome", url='https://alfa-addon.com/foros/tutoriales.11/', 
+                         title="Tutoriales relevantes [COLOR yellow](pincha si tienes instalado Chrome)[/COLOR]:", 
+                         thumbnail=get_thumb("help.png", view), unify=False, folder=False, 
+                         category=config.get_localized_string(30104), viewmode="list"))
+                         
+    itemlist.append(Item(channel="setting", action="call_chrome", url='https://alfa-addon.com/threads/bloqueos-en-la-descarga-de-torrents.3646/', 
+                         title="-     [COLOR yellow]¿Bloqueos en la descarga de Torrents?[/COLOR]   " + 
+                         "https://alfa-addon.com/threads/bloqueos-en-la-descarga-de-torrents.3646/", 
+                         thumbnail=get_thumb("help.png", view), unify=False, folder=False, 
+                         category=config.get_localized_string(30104), viewmode="list"))
+
     return itemlist
 
 
@@ -170,7 +184,7 @@ def filterchannels(category, view="thumb_"):
 
             # Se salta el canal para adultos si el modo adultos está desactivado
             if channel_parameters["adult"] and config.get_setting("adult_mode") == 0:
-                if category <> "all_channels":
+                if category != "all_channels":
                     continue
 
             # Se salta el canal si está en un idioma filtrado
@@ -179,12 +193,12 @@ def filterchannels(category, view="thumb_"):
             # Los canales de adultos se mostrarán siempre que estén activos
             if channel_language != "all" and channel_language not in channel_parameters["language"] \
                     and "*" not in channel_parameters["language"]:
-                if category <> "all_channels":
+                if category != "all_channels":
                     continue
 
             # Se salta el canal si está en una categoria filtrado
             if category != "all" and category not in channel_parameters["categories"]:
-                if category <> "all_channels":
+                if category != "all_channels":
                     continue
 
             # Si tiene configuración añadimos un item en el contexto

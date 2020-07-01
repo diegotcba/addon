@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
 import re
 
 from platformcode import config, logger
@@ -10,6 +18,8 @@ from core.item import Item
 from core import httptools
 from channels import filtertools
 from channels import autoplay
+from bs4 import BeautifulSoup
+
 
 IDIOMAS = {'vo': 'VO'}
 list_language = IDIOMAS.values()
@@ -22,22 +32,19 @@ host = 'http://www.eroticage.net'
 def mainlist(item):
     logger.info()
     itemlist = []
-
-    autoplay.init(item.channel, list_servers, list_quality)
-
-    itemlist.append( Item(channel=item.channel, title="Novedades" , action="lista", url=host))
+    itemlist.append( Item(channel=item.channel, title="Novedades" , action="lista", url=host + "/?filter=latest"))
+    itemlist.append( Item(channel=item.channel, title="Mas Popular" , action="lista", url=host + "/?filter=popular"))
+    itemlist.append( Item(channel=item.channel, title="Mas Visto" , action="lista", url=host + "/?filter=most-viewed"))
+    itemlist.append( Item(channel=item.channel, title="Mas Largo" , action="lista", url=host + "/?filter=longest"))
     itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host))
     itemlist.append( Item(channel=item.channel, title="Buscar", action="search"))
-
-    autoplay.show_option(item.channel, itemlist)
-
     return itemlist
 
 
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/?s=%s" % texto
+    item.url = "%s/?s=%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -50,32 +57,52 @@ def search(item, texto):
 def categorias(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = scrapertools.find_single_match(data,'<h2>TAGS</h2>(.*?)<div class="sideitem"')
-    patron  = '<a href="(.*?)".*?>(.*?)</a>'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,scrapedtitle in matches:
-        scrapedplot = ""
-        scrapedthumbnail = ""
-        itemlist.append( Item(channel=item.channel, action="lista", title=scrapedtitle, url=scrapedurl,
-                               thumbnail=scrapedthumbnail, plot=scrapedplot) )
+    soup = create_soup(item.url)
+    matches = soup.find('div', class_='tagcloud').find_all('a', class_='tag-cloud-link')
+    for elem in matches:
+        url = elem['href']
+        title = elem.text
+        itemlist.append( Item(channel=item.channel, action="lista", title=title, url=url,
+                               thumbnail="", plot="") )
     return itemlist
+
+
+def create_soup(url, referer=None, unescape=False):
+    logger.info()
+    if referer:
+        data = httptools.downloadpage(url, headers={'Referer': referer}).data
+    else:
+        data = httptools.downloadpage(url).data
+    if unescape:
+        data = scrapertools.unescape(data)
+    soup = BeautifulSoup(data, "html5lib", from_encoding="utf-8")
+    return soup
 
 
 def lista(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    patron  = '<div class="titleFilm"><a href="([^"]+)">([^"]+)</a>.*?src="([^"]+)"'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,scrapedtitle,scrapedthumbnail in matches:
-        contentTitle = scrapedtitle
-        title = scrapedtitle
-        thumbnail = scrapedthumbnail
+    soup = create_soup(item.url)
+    if "/?s=" in item.url:
+        matches = soup.find('section', class_='content-area with-sidebar-right').find_all('article', class_='thumb-block')
+    else:
+        matches = soup.find('div', class_='content-area with-sidebar-right').find_all('article', class_='thumb-block')
+    for elem in matches:
+        url = elem.a['href']
+        title = elem.a['title']
+        thumbnail = elem.img['src']
+        # stime = elem.find('span', class_='duration')
+        # if stime:
+            # title = "[COLOR yellow]%s[/COLOR] %s" % (stime.text,title)
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="findvideos", title=title, url=scrapedurl, thumbnail=thumbnail,
-                               plot=plot, fanart=scrapedthumbnail, contentTitle=contentTitle ))
-    next_page = scrapertools.find_single_match(data,'<a class="nextpostslink" rel="next" href="([^"]+)">')
+        itemlist.append( Item(channel=item.channel, action="play", title=title, url=url, thumbnail=thumbnail,
+                               plot=plot, fanart=thumbnail, contentTitle=title ))
+    next_page =""
+    pages = soup.find('div', class_='pagination')
+    if pages:
+        pages = pages.find_all('a')[-2]
+        # next_page = pages['href']
+        next_page = scrapertools.find_single_match(str(pages), 'href="([^"]+)"')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
         itemlist.append(item.clone(action="lista", title="Página Siguiente >>", text_color="blue", url=next_page) )
@@ -85,20 +112,64 @@ def lista(item):
 def findvideos(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    patron = '<iframe src="([^"]+)"'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl in matches:
+    soup = create_soup(item.url)
+    matches = soup.find_all('div', class_='responsive-player')
+    for elem in matches:
+        scrapedurl = elem.iframe['src']
         if "cine-matik.com" in scrapedurl:
+            n = "yandex"
             m = scrapedurl.replace("https://cine-matik.com/player/play.php?", "")
-            post = "%s&alternative=yandex" %m
-            data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post).data
+            post = "%s&alternative=%s" %(m,n)
+            headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+            data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post, headers=headers).data
+            if data1=="":
+                n = "blogger"
+                m = scrapedurl.replace("https://cine-matik.com/player/play.php?", "")
+                post = "%s&alternative=%s" %(m,n)
+                headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+                data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post, headers=headers).data
             scrapedurl = scrapertools.find_single_match(data1,'"file":"([^"]+)"')
+            if not scrapedurl:
+                n = scrapertools.find_single_match(data1,'"alternative":"([^"]+)"')
+                post = "%s&alternative=%s" %(m,n)
+                headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+                data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post, headers=headers).data
+                scrapedurl = scrapertools.find_single_match(data1,'"file":"([^"]+)"')
             scrapedurl = scrapedurl.replace("\/", "/")
-        itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=scrapedurl))
+        if not "meta" in scrapedurl:
+            itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=scrapedurl))
     itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
-    # Requerido para FilterTools
-    itemlist = filtertools.get_links(itemlist, item, list_language)
-    # Requerido para AutoPlay
-    autoplay.start(itemlist, item)
+    return itemlist
+
+
+def play(item):
+    logger.info()
+    itemlist = []
+    soup = create_soup(item.url)
+    matches = soup.find_all('div', class_='responsive-player')
+    for elem in matches:
+        scrapedurl = elem.iframe['src']
+        if "cine-matik.com" in scrapedurl:
+            n = "yandex"
+            m = scrapedurl.replace("https://cine-matik.com/player/play.php?", "")
+            post = "%s&alternative=%s" %(m,n)
+            headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+            data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post, headers=headers).data
+            if data1=="":
+                n = "blogger"
+                m = scrapedurl.replace("https://cine-matik.com/player/play.php?", "")
+                post = "%s&alternative=%s" %(m,n)
+                headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+                data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post, headers=headers).data
+            scrapedurl = scrapertools.find_single_match(data1,'"file":"([^"]+)"')
+            if not scrapedurl:
+                n = scrapertools.find_single_match(data1,'"alternative":"([^"]+)"')
+                post = "%s&alternative=%s" %(m,n)
+                headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+                data1 = httptools.downloadpage("https://cine-matik.com/player/ajax_sources.php", post=post, headers=headers).data
+                scrapedurl = scrapertools.find_single_match(data1,'"file":"([^"]+)"')
+            scrapedurl = scrapedurl.replace("\/", "/")
+        if not "meta" in scrapedurl:
+            itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=scrapedurl))
+    itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist

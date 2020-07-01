@@ -1,7 +1,15 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
-import os, sys
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
 
 from platformcode import config, logger
 from core import scrapertools
@@ -10,6 +18,8 @@ from core import servertools
 from core import httptools
 
 host = 'https://severeporn.com'
+
+# falla KTP
 
 def mainlist(item):
     logger.info()
@@ -26,7 +36,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "-")
-    item.url = host + "/search/%s/" % texto
+    item.url = "%s/search/%s/" % (host, texto)
     try:
         return lista(item)
     except:
@@ -54,8 +64,7 @@ def catalogo(item):
     next_page = scrapertools.find_single_match(data, '<li class="next"><a href="([^"]+)"')
     if next_page:
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append( Item(channel=item.channel, action="catalogo", title="Página Siguiente >>", text_color="blue", 
-                              url=next_page) )
+        itemlist.append(item.clone(action="catalogo", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
@@ -95,23 +104,24 @@ def lista(item):
         itemlist.append( Item(channel=item.channel, action="play", title=title, url=url,
                               thumbnail=thumbnail, fanart=thumbnail, plot=plot, contentTitle = title))
     next_page = scrapertools.find_single_match(data, '<li class="next"><a href="([^"]+)"')
+    if "#" in next_page:
+        next_page = scrapertools.find_single_match(data, 'data-parameters="([^"]+)">Next')
+        next_page = next_page.replace(":", "=").replace(";", "&").replace("+from_albums", "")
+        next_page = "?%s" % next_page
     if next_page:
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append( Item(channel=item.channel, action="lista", title="Página Siguiente >>", text_color="blue", 
-                              url=next_page) )
+        itemlist.append(item.clone(action="lista", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
-
 
 def play(item):
     logger.info()
     itemlist = []
-    data = httptools.downloadpage(item.url).data
-    data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-    data = scrapertools.find_single_match(data, '<div id="tab_video_info" class="tab-content">(.*?)<div class="block-flagging">')
-    logger.debug(data)
-    patron = '<a href="(https://severeporn.com/get_file/.*?mp4)"'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for url in matches:
-        itemlist.append(['[Directo]' , url])
+    itemlist.append(item.clone(action="play", title= "%s", contentTitle = item.title, url=item.url))
+    itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist
+
+# def play(item):
+    # logger.info(item)
+    # itemlist = servertools.find_video_items(item.clone(url = item.url, contentTitle = item.title))
+    # return itemlist
 

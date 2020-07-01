@@ -26,10 +26,10 @@ def mainlist(item):
 
     itemlist = list()
     itemlist.append(Item(channel=item.channel, action="novedades_episodios", title="Últimos episodios",
-                         url=HOST, thumbnail="https://i.imgur.com/w941jbR.png"))
+                         url=HOST+'anime-online.html', thumbnail="https://i.imgur.com/w941jbR.png"))
 
     itemlist.append(Item(channel=item.channel, action="novedades_anime", title="Últimos animes",
-                         url=HOST, thumbnail="https://i.imgur.com/hMu5RR7.png"))
+                         url=HOST+'anime-online.html', thumbnail="https://i.imgur.com/hMu5RR7.png"))
 
     itemlist.append(Item(channel=item.channel, action="listado", title="Animes",
                          url=HOST + "animes/nombre/lista", thumbnail='https://i.imgur.com/50lMcjW.png'))
@@ -244,12 +244,13 @@ def episodios(item):
 
     return itemlist
 
+
 def findvideos(item):
     logger.info()
     itemlist = []
     data = httptools.downloadpage(item.url).data
-    bloque = scrapertools.find_single_match(data, 'Server</span>(.*?)choose_quality')
-    matches = scrapertools.find_multiple_matches(bloque, '<option value="([^"]+)"')
+    bloque = scrapertools.find_single_match(data, 'Server</span>(.*?)id="choose_quality"')
+    matches = scrapertools.find_multiple_matches(bloque, '<option sv="[^"]+" value="([^"]+)"')
     headers = {"Referer" : item.url}
 
     for url in matches:

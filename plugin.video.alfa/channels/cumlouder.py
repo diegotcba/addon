@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
 
 import re
-import urllib
-import urlparse
 
 from core import httptools
 from core import scrapertools
@@ -16,8 +22,8 @@ def mainlist(item):
     logger.info()
     itemlist = []
     config.set_setting("url_error", False, "cumlouder")
-    itemlist.append(item.clone(title="Clips", action="videos", url= host + "/porn/"))
-    itemlist.append(item.clone(title="Últimos videos", action="videos", url= host + "/2/?s=last"))
+    itemlist.append(item.clone(title="Clips", action="lista", url= host + "/porn/"))
+    itemlist.append(item.clone(title="Últimos videos", action="lista", url= host + "/2/?s=last"))
     itemlist.append(item.clone(title="Pornstars", action="pornstars_list", url=host + "/girls/"))
     itemlist.append(item.clone(title="Listas", action="series", url= host + "/series/"))
     itemlist.append(item.clone(title="Canal", action="pornstars_list", url=host + "/channels/"))
@@ -29,9 +35,9 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     item.url = item.url % texto
-    item.action = "videos"
+    item.action = "lista"
     try:
-        return videos(item)
+        return lista(item)
     except:
         import traceback
         logger.error(traceback.format_exc())
@@ -73,12 +79,12 @@ def pornstars(item):
                 thumbnail = "https:%s" % thumbnail
         
         itemlist.append(item.clone(title="%s (%s)" % (title, count.strip()), url=url, 
-                        action="videos", fanart=thumbnail, thumbnail=thumbnail))
+                        action="lista", fanart=thumbnail, thumbnail=thumbnail))
     # Paginador
-    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name"  href="([^"]+)">Next')
+    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name" href="([^"]+)">Next')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="pornstars", title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="pornstars", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
@@ -92,6 +98,7 @@ def categorias(item):
     patron += '<span class="cantidad">([^<]+)</span>'
     matches = re.compile(patron, re.DOTALL).findall(data)
     for url, thumbnail, title, count in matches:
+        title="%s (%s)" % (title, count.strip())
         if "go.php?" in url:
             url = urllib.unquote(url.split("/go.php?u=")[1].split("&")[0])
             thumbnail = urllib.unquote(thumbnail.split("/go.php?u=")[1].split("&")[0])
@@ -100,13 +107,12 @@ def categorias(item):
             if not thumbnail.startswith("https"):
                 thumbnail = "https:%s" % thumbnail
         itemlist.append(
-            item.clone(title="%s (%s videos)" % (title, count.strip()), url=url,
-                       action="videos", fanart=thumbnail, thumbnail=thumbnail))
+            item.clone(action="lista", title=title, url=url, fanart=thumbnail, thumbnail=thumbnail))
     # Paginador
-    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name"  href="([^"]+)">Next')
+    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name" href="([^"]+)">Next')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="categorias", title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="categorias", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
@@ -120,29 +126,32 @@ def series(item):
     patron += 'p>([^<]+)</p>'
     matches = re.compile(patron, re.DOTALL).findall(data)
     for url, thumbnail, title, count in matches:
+        title="%s (%s) " % (title, count)
+        url=urlparse.urljoin(item.url, url)
         itemlist.append(
-            item.clone(title="%s (%s) " % (title, count), url=urlparse.urljoin(item.url, url), action="videos", fanart=thumbnail, thumbnail=thumbnail))
+            item.clone(title=title, url=url, action="lista", fanart=thumbnail, thumbnail=thumbnail))
     # Paginador
-    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name"  href="([^"]+)">Next')
+    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name" href="([^"]+)">Next')
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="series", title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="series", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
-def videos(item):
+def lista(item):
     logger.info()
     itemlist = []
     data = httptools.downloadpage(item.url).data
+    logger.debug(data)
     patron = '<a class="muestra-escena" href="([^"]+)".*?'
     patron += 'data-src="([^"]+)".*?alt="([^"]+)".*?'
     patron += '"ico-minutos sprite"></span>([^<]+)</span>(.*?)</a>'
     matches = re.compile(patron, re.DOTALL).findall(data)
     for url, thumbnail, title, duration,calidad in matches:
         if "hd sprite" in calidad:
-            title="[COLOR yellow][%s][/COLOR][COLOR red] [HD][/COLOR] %s" % (duration.strip(),  title)
+            title="[COLOR yellow]%s[/COLOR]  [COLOR red]HD[/COLOR] %s" % (duration.strip(),  title)
         else:
-            title="[COLOR yellow][%s][/COLOR] %s" % (duration.strip(), title)
+            title="[COLOR yellow]%s[/COLOR] %s" % (duration.strip(), title)
         if "go.php?" in url:
             url = urllib.unquote(url.split("/go.php?u=")[1].split("&")[0])
             thumbnail = urllib.unquote(thumbnail.split("/go.php?u=")[1].split("&")[0])
@@ -154,10 +163,11 @@ def videos(item):
                                    action="play", thumbnail=thumbnail, contentThumbnail=thumbnail,
                                    fanart=thumbnail, contentType="movie", contentTitle=title))
     # Paginador
-    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name"  href="([^"]+)">Next')
+    next_page = scrapertools.find_single_match(data,'<a class="btn-pagination" itemprop="name" href="([^"]+)">Next')
+    logger.debug(next_page)
     if next_page!="":
         next_page = urlparse.urljoin(item.url,next_page)
-        itemlist.append(item.clone(action="videos", title="Página Siguiente >>", text_color="blue", url=next_page) )
+        itemlist.append(item.clone(action="lista", title="[COLOR blue]Página Siguiente >>[/COLOR]", url=next_page) )
     return itemlist
 
 
@@ -170,8 +180,9 @@ def play(item):
     if "go.php?" in url:
         url = urllib.unquote(url.split("/go.php?u=")[1].split("&")[0])
     elif not url.startswith("http"):
-        url = "https:" + url.replace("&amp;", "&")
+        url = "https:%s" % url.replace("&amp;", "&")
+        title="Video %s" % res
+        # contentTitle=item.title + ' (' + res + "%s (%sp)"
     itemlist.append(
-        Item(channel='cumlouder', action="play", title='Video' + res, contentTitle=item.title + ' (' + res + "p)", url=url,
-             server="directo", folder=False))
+        Item(channel='cumlouder', action="play", title=title, contentTitle=item.contentTitle, url=url, server="directo"))
     return itemlist

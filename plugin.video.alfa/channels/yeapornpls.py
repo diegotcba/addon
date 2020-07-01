@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,re
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
 
 from platformcode import config, logger
 from core import scrapertools
@@ -8,25 +17,23 @@ from core.item import Item
 from core import servertools
 from core import httptools
 
-host = 'https://yeapornpls.com'
+host = 'https://0dayporn.com'
 
 def mainlist(item):
     logger.info()
     itemlist = []
-    itemlist.append( Item(channel=item.channel, title="Nuevos" , action="lista", url=host + "/videos?o=mr"))
-    itemlist.append( Item(channel=item.channel, title="Mas vistos" , action="lista", url=host + "/videos?o=mv"))
-    itemlist.append( Item(channel=item.channel, title="Mejor valorado" , action="lista", url=host + "/videos?o=tr"))
-    itemlist.append( Item(channel=item.channel, title="Mas largo" , action="lista", url=host + "/videos?o=lg"))
-    itemlist.append( Item(channel=item.channel, title="Mas comentados" , action="lista", url=host + "/videos?o=md")) 
-    itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host + "/categories"))
+    itemlist.append( Item(channel=item.channel, title="Nuevos" , action="lista", url=host + "/latest-updates/"))
+    itemlist.append( Item(channel=item.channel, title="Mas vistos" , action="lista", url=host + "/most-popular/"))
+    itemlist.append( Item(channel=item.channel, title="Mejor valorado" , action="lista", url=host + "/top-rated/"))
+    itemlist.append( Item(channel=item.channel, title="Categorias" , action="categorias", url=host + "/categories/"))
     itemlist.append( Item(channel=item.channel, title="Buscar", action="search"))
     return itemlist
 
 
 def search(item, texto):
     logger.info()
-    texto = texto.replace(" ", "+")
-    item.url = host + "/search/videos?search_query=%s" % texto
+    texto = texto.replace(" ", "-")
+    item.url = "%s/search/%s/" % (host, texto)
     try:
         return lista(item)
     except:
@@ -41,38 +48,55 @@ def categorias(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-    patron = '<div class="col-sm-6.*?'
-    patron += '<a href="([^"]+)".*?'
-    patron += 'title="([^"]+)".*?'
-    patron += '<span class="badge">([^<]+)<'
+    patron = '<a class="item".*?'
+    patron += 'href="([^"]+)" title="([^"]+)".*?'
+    if "models" in item.url:
+        patron += 'src="([^"]+)".*?'
+        patron += '<span class="model-title.*?>([^<]+)</span>.*?'
+        patron += '</i>([^<]+)</span>'
+    else:
+        patron += '<div class="img">(.*?)</div.*?'
+        patron += '<div class="videos">([^<]+) videos<'
     matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,scrapedtitle,cantidad in matches:
-        thumbnail = ""
+    for scrapedurl,scrapedtitle,scrapedthumbnail,cantidad in matches:
+        thumbnail = scrapertools.find_single_match(scrapedthumbnail, 'src="([^"]+)"')
         title = "%s (%s)" %(scrapedtitle,cantidad)
-        url = scrapedurl
+        url = urlparse.urljoin(host,scrapedurl)
         itemlist.append( Item(channel=item.channel, action="lista", title=title, url=url,
                               fanart=thumbnail, thumbnail=thumbnail, plot="") )
+    next_page = scrapertools.find_single_match(data, '<a class="page-link" href="([^"]+)" class="prevnext"')
+    if next_page:
+        next_page = urlparse.urljoin(item.url,next_page)
+        itemlist.append( Item(channel=item.channel, action="categorias", title="Página Siguiente >>", text_color="blue", 
+                              url=next_page) )
     return itemlist
+
 
 def lista(item):
     logger.info()
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-    patron = 'col-lg-4">.*?'
-    patron += '<a href="([^"]+)".*?'
-    patron += '<img src="([^"]+)" title="([^"]+)".*?'
-    patron += '<div class="duration">([^>]+)<'
+    patron = '<div class="item  ">.*?'
+    patron += '<a href="([^"]+)" title="([^"]+)".*?'
+    patron += 'data-original="([^"]+)".*?'
+    patron += 'title="Watch Later"(.*?)</div>.*?'
+    patron += '<div class="duration">([^<]+)<'
     matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,scrapedthumbnail,scrapedtitle,time in matches:
-        title = "[COLOR yellow]%s[/COLOR] %s" % (time, scrapedtitle)
-        thumbnail = urlparse.urljoin(item.url,scrapedthumbnail)
-        url = scrapedurl
-        logger.debug(url)
+    for scrapedurl,scrapedtitle,scrapedthumbnail,quality,time in matches:
+        if "HD" in quality:
+            quality = "HD"
+        else:
+            quality =""
+        title = "[COLOR yellow]%s[/COLOR] [COLOR red]%s[/COLOR] %s" % (time, quality, scrapedtitle)
         plot = ""
-        itemlist.append( Item(channel=item.channel, action="play", title=title, url=url,
-                              thumbnail=thumbnail, fanart=thumbnail, plot=plot, contentTitle = title))
-    next_page = scrapertools.find_single_match(data, '<li class="active">.*?<a href="([^"]+)">\d+<')
+        itemlist.append( Item(channel=item.channel, action="play", title=title, url=scrapedurl,
+                              thumbnail=scrapedthumbnail, fanart=scrapedthumbnail, plot=plot, contentTitle = title))
+    next_page = scrapertools.find_single_match(data, '<li class="next"><a href="([^"]+)"')
+    if "#" in next_page:
+        next_page = scrapertools.find_single_match(data, 'data-parameters="([^"]+)">Next')
+        next_page = next_page.replace(":", "=").replace(";", "&").replace("+from_albums", "")
+        next_page = "?%s" % next_page
     if next_page:
         next_page = urlparse.urljoin(item.url,next_page)
         itemlist.append( Item(channel=item.channel, action="lista", title="Página Siguiente >>", text_color="blue", 
@@ -85,9 +109,11 @@ def play(item):
     itemlist = []
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|&nbsp;|<br>|<br/>", "", data)
-    patron = '<div class="video-embedded">.*?(?:src|SRC)="([^"]+)"'
-    matches = re.compile(patron,re.DOTALL).findall(data)
-    for url in matches:
-        itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=url))
+    data = scrapertools.find_single_match(data, '<div class="player-holder">(.*?)<div class="sponsor">')
+    if "kt_player" in data:
+        url = item.url
+    else:
+        url = scrapertools.find_single_match(data, '<(?:iframe|IFRAME).*?(?:src|SRC)="([^"]+)"')
+    itemlist.append(item.clone(action="play", title= "%s", contentTitle= item.title, url=url))
     itemlist = servertools.get_servers_itemlist(itemlist, lambda i: i.title % i.server.capitalize())
     return itemlist

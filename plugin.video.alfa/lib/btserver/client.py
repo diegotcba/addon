@@ -68,7 +68,7 @@ class Client(object):
                   '.rar': 'video/unrar'}
 
     def __init__(self, url=None, port=None, ip=None, auto_shutdown=True, wait_time=20, timeout=5, auto_delete=True,
-                 temp_path=None, is_playing_fnc=None, print_status=False):
+                 temp_path=None, is_playing_fnc=None, print_status=False, bkg_user=False):
 
         # server
         if port:
@@ -95,6 +95,7 @@ class Client(object):
         self.first_pieces_priorize = BUFFER
         self.last_pieces_priorize = 5
         self.state_file = "state"
+        self.bkg_user = bkg_user
         try:
             self.torrent_paramss = {'save_path': self.temp_path, 'storage_mode': lt.storage_mode_t.storage_mode_allocate}
         except Exception, e:
@@ -117,7 +118,7 @@ class Client(object):
         self.file = None
         self.files = None
         self._th = None
-        self.seleccion = 0
+        self.seleccion = -999
         self.index = 0
 
         # Sesion
@@ -223,7 +224,7 @@ class Client(object):
         # Seleccionamos el archivo que vamos a servir
         fmap = self.meta.map_file(f.index, 0, 1)
         self.file = File(f.path, self.temp_path, f.index, f.size, fmap, self.meta.piece_length(), self)
-        if self.seleccion < 0:                                                  ### ALFA
+        if self.seleccion < 0 and self.seleccion > -10:                         ### ALFA
             self.file.first_piece = 0                                           ### ALFA
             self.file.last_piece = self.meta.num_pieces()                       ### ALFA
             self.file.size = self.total_size                                    ### ALFA
@@ -426,7 +427,7 @@ class Client(object):
 
             # Tamaño del archivo
             s.file_name = ''                                                    ### ALFA
-            s.seleccion = ''                                                    ### ALFA
+            s.seleccion = -999                                                  ### ALFA
 
             if self.file:
                 s.seleccion = self.seleccion                                    ### ALFA
@@ -604,7 +605,7 @@ class Client(object):
             lista = []
             seleccion = 0
             for file in self.files:
-                if '.rar' in str(file.path):
+                if '.rar' in str(file.path) or self.bkg_user:
                     seleccion = -9
                 lista += [os.path.split(str(file.path))[1]]
             if len(lista) > 1 and seleccion >= 0:

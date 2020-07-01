@@ -6,6 +6,10 @@
       {
         "pattern": "https://upstream.to/embed-([a-z0-9]+).html",
         "url": "https://upstream.to/embed-\\1.html"
+      },
+      {
+        "pattern": "https://upstream.to/([a-z0-9]+)",
+        "url": "https://upstream.to/embed-\\1.html"
       }
     ]
   },
@@ -38,5 +42,5 @@
       "visible": false
     }
   ],
-  "thumbnail": ""
+  "thumbnail": "https://i.postimg.cc/mDy7436t/upstream.png"
 }

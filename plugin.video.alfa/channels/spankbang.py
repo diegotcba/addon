@@ -1,7 +1,16 @@
 # -*- coding: utf-8 -*-
 #------------------------------------------------------------
-import urlparse,urllib2,urllib,re
-import os, sys
+import sys
+PY3 = False
+if sys.version_info[0] >= 3: PY3 = True; unicode = str; unichr = chr; long = int
+
+if PY3:
+    import urllib.parse as urlparse                             # Es muy lento en PY2.  En PY3 es nativo
+else:
+    import urlparse                                             # Usamos el nativo de PY2 que es más rápido
+
+import re
+
 from platformcode import config, logger
 from core import scrapertools
 from core.item import Item
@@ -26,7 +35,7 @@ def mainlist(item):
 def search(item, texto):
     logger.info()
     texto = texto.replace(" ", "+")
-    item.url = host + "/s/%s" % texto
+    item.url = "%s/s/%s" % (host, texto)
     try:
         return lista(item)
     except:
@@ -58,21 +67,11 @@ def lista(item):
     data = httptools.downloadpage(item.url).data
     patron = '<div class="video-item" data-id="\d+">.*?'
     patron += '<a href="([^"]+)" class="thumb ">.*?'
-    patron += 'data-src="([^"]+)" alt="([^"]+)"(.*?)'
-    patron += '<i class="fa fa-clock-o"></i>([^<]+)</span>'
+    patron += 'data-src="([^"]+)" alt="([^"]+)".*?'
+    patron += '<span class="i-len">(\d+m)</span>(.*?)</p>'
     matches = re.compile(patron,re.DOTALL).findall(data)
-    for scrapedurl,scrapedthumbnail,scrapedtitle,quality,duration in matches:
+    for scrapedurl,scrapedthumbnail,scrapedtitle,duration,quality in matches:
         url = urlparse.urljoin(item.url,scrapedurl)
-        duration = duration.strip()
-        minutos = int(duration)
-        horas=int(minutos/60)
-        minutos-=horas*60
-        if minutos < 10:
-            minutos = "0%s" %minutos
-        if horas == 0:
-            duration = "%s:%s" % (horas,minutos)
-        else:
-            duration = "%s:%s" % (horas,minutos)
         title = "[COLOR yellow]%s[/COLOR] %s" % (duration,scrapedtitle)
         if "i-hd" in quality:
             quality = scrapertools.find_single_match(quality,'<span class="i-hd">([^<]+)</span>')
@@ -96,11 +95,11 @@ def play(item):
     data = httptools.downloadpage(item.url).data
     skey = scrapertools.find_single_match(data,'data-streamkey="([^"]+)"')
     session="523034c1c1fc14aabde7335e4f9d9006b0b1e4984bf919d1381316adef299d1e"
-    post = {"id": skey, "data": 0, "sb_csrf_session": session}
+    post = {"id": skey, "data": 0}
     headers = {'Referer':item.url}
     url ="%s%s" % (host, "/api/videos/stream")
     data = httptools.downloadpage(url, post=post, headers=headers).data
-    patron = '"stream_url_(\w+)":\["([^"]+)"'
+    patron = '"(\d+(?:p|k))":\["([^"]+)"'
     matches = re.compile(patron,re.DOTALL).findall(data)
     for quality,url in matches:
         itemlist.append(['.mp4 %s' %quality, url])

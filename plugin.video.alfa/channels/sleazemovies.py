@@ -12,7 +12,7 @@ from core import tmdb
 from core.item import Item
 from platformcode import config, logger
 
-host = 'http://www.eroti.ga/'
+host = 'http://www.eroti.ga/'   #'http://www.eroti.ga/'  'https://www.sleazemovies.com/'
 
 
 def mainlist(item):
@@ -44,16 +44,16 @@ def list_all(item):
     data = httptools.downloadpage(item.url).data
     data = re.sub(r"\n|\r|\t|\s{2}|&nbsp;", "", data)  # Eliminamos tabuladores, dobles espacios saltos de linea, etc...
 
-    logger.debug(data)
-    patron = '<articleid="post-\d+".*?'
-    patron += '<h2 class="entry-title"><a href="([^"]+)" rel="bookmark">(.*?) (?:watch|Watch).*?'
-    patron += '<img width="\d+" height="\d+" src="([^?]+).*?'
-    patron += '<p>([^<]+)</p>'
+
+    patron = '<div class="twp-image-section twp-image-hover">.*?'
+    patron += 'data-background="([^?]+).*?'
+    patron += '<h3 class="twp-post-title"><a href="([^"]+)".*?>(.*?) (?:watch|Watch)'
+    # patron += '<p>([^<]+)</p>'
     matches = re.compile(patron, re.DOTALL).findall(data)
 
-    for scrapedurl, scrapedtitle, img, year in matches:
+    for img, scrapedurl, scrapedtitle in matches:
         contentTitle = scrapertools.find_single_match(scrapedtitle, '([^\(]+)')
-        year = scrapertools.find_single_match(year, 'Year: (\d{4})')
+        year = scrapertools.find_single_match(scrapedtitle, '(\d{4})')
         if not year:
             year = scrapertools.find_single_match(scrapedtitle, '\((\d{4})\)')
         itemlist.append(Item(channel = item.channel,
@@ -67,7 +67,7 @@ def list_all(item):
     tmdb.set_infoLabels_itemlist(itemlist, seekTmdb = True)
 
     # Extrae la marca de siguiente página
-    next_page = scrapertools.find_single_match(data, '<a class="next page-numbers" href="([^"]+)">Next</a></div>')
+    next_page = scrapertools.find_single_match(data, '<a class="next page-numbers" href="([^"]+)"')
     if next_page != "":
 	    itemlist.append(Item(channel=item.channel, action="list_all", title=">> Página siguiente", url=next_page, folder=True))
     return itemlist
@@ -78,7 +78,7 @@ def search(item, texto):
     logger.info()
     if texto != "":
         texto = texto.replace(" ", "+")
-    item.url = host + "?s=" + texto
+    item.url = "%s?s=%s" % (host, texto)
     item.extra = "busqueda"
     try:
         return list_all(item)
